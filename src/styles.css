@@ -169,3 +169,42 @@
     background: linear-gradient(90deg, transparent, var(--gold-deep), transparent);
   }
 }
+
+@utility medal-gold {
+  background: linear-gradient(135deg, oklch(0.92 0.16 90), oklch(0.68 0.14 80));
+  color: oklch(0.16 0.02 260);
+  box-shadow: 0 4px 12px -2px oklch(0.82 0.16 85 / 40%), inset 0 1px 0 oklch(1 0 0 / 40%);
+}
+@utility medal-silver {
+  background: linear-gradient(135deg, oklch(0.92 0.01 260), oklch(0.68 0.01 260));
+  color: oklch(0.16 0.02 260);
+  box-shadow: 0 4px 12px -2px oklch(0 0 0 / 30%), inset 0 1px 0 oklch(1 0 0 / 40%);
+}
+@utility medal-bronze {
+  background: linear-gradient(135deg, oklch(0.72 0.12 50), oklch(0.48 0.10 45));
+  color: oklch(0.96 0.02 90);
+  box-shadow: 0 4px 12px -2px oklch(0.48 0.10 45 / 40%), inset 0 1px 0 oklch(1 0 0 / 25%);
+}
+
+@utility pick-cell-correct {
+  border-color: oklch(0.72 0.18 145);
+  background: oklch(0.72 0.18 145 / 12%);
+  color: oklch(0.85 0.18 145);
+}
+@utility pick-cell-wrong {
+  border-color: oklch(0.58 0.22 25 / 60%);
+  background: oklch(0.58 0.22 25 / 10%);
+  color: oklch(0.72 0.18 25);
+  text-decoration: line-through;
+}
+@utility pick-cell-pending {
+  border-color: var(--gold-deep);
+  background: oklch(0.82 0.16 85 / 4%);
+  color: var(--gold-dim);
+}
+@utility pick-cell-empty {
+  border-color: oklch(0.30 0.02 260);
+  background: transparent;
+  color: oklch(0.50 0.02 260);
+}
+
