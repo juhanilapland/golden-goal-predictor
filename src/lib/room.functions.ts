@@ -59,6 +59,7 @@ function buildPrompt(
   persona: string,
   rivalMatches: MatchWithPreds[],
   chat: ChatRow[],
+  matchesHeader: string,
 ): string {
   const myPicks = rivalMatches.map((m) => {
     const mine = m.predictions.find((p) => p.predictor === rivalId);
@@ -74,7 +75,7 @@ function buildPrompt(
 
   return `${persona}
 
-Recent finished matches and how you did:
+${matchesHeader}
 ${myPicks.join("\n") || "(no recent results yet)"}
 
 Current chat in the game room (oldest first):
