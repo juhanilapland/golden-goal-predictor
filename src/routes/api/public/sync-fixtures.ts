@@ -70,7 +70,7 @@ async function handleSync() {
     });
   }
 
-  return new Response(JSON.stringify({ synced: rows.length }), {
+  return new Response(JSON.stringify({ synced: rows.length, syncedAt: new Date().toISOString() }), {
     headers: { "Content-Type": "application/json", ...corsHeaders },
   });
 }

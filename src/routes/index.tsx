@@ -21,6 +21,18 @@ type Match = {
   status: string;
 };
 
+function formatTimeAgo(dateStr: string | null): string {
+  if (!dateStr) return "Never";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
 
 
 export const Route = createFileRoute("/")({
@@ -140,6 +152,12 @@ function GuessPage() {
   const [guesses, setGuesses] = useState<Record<number, Pick>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [lastSynced, setLastSynced] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("wc26_last_synced") ?? null;
+    }
+    return null;
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -189,6 +207,10 @@ function GuessPage() {
         toast.error("Sync failed: " + (json.error ?? res.status));
       } else {
         toast.success(`Synced ${json.synced} matches`);
+        if (json.syncedAt) {
+          localStorage.setItem("wc26_last_synced", json.syncedAt);
+          setLastSynced(json.syncedAt);
+        }
         await load();
       }
     } catch (e) {
@@ -197,6 +219,13 @@ function GuessPage() {
       setSyncing(false);
     }
   }, [load]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      handleSync();
+    }, 10 * 60 * 1000); // auto-refresh every 10 minutes
+    return () => clearInterval(interval);
+  }, [handleSync]);
 
   const grouped = useMemo(() => {
     const byStage: Record<string, Match[]> = {};
@@ -216,13 +245,18 @@ function GuessPage() {
           <h1 className="text-4xl sm:text-5xl gold-text">World Cup 2026</h1>
           <p className="text-muted-foreground text-sm mt-1">Pick the winner for every match.</p>
         </div>
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          className="gold-border bg-card text-[--gold] font-display text-xs uppercase tracking-widest px-4 py-2 rounded-md hover:bg-[--muted] transition disabled:opacity-50"
-        >
-          {syncing ? "Syncing…" : "Refresh fixtures"}
-        </button>
+        <div className="flex flex-col items-end gap-1">
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="gold-border bg-card text-[--gold] font-display text-xs uppercase tracking-widest px-4 py-2 rounded-md hover:bg-[--muted] transition disabled:opacity-50"
+          >
+            {syncing ? "Syncing…" : "Refresh fixtures"}
+          </button>
+          <span className="text-[10px] text-muted-foreground">
+            Last updated: {formatTimeAgo(lastSynced)}
+          </span>
+        </div>
       </header>
 
       {loading ? (
