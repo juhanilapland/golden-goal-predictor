@@ -1,60 +1,49 @@
-# World Cup 2026 Match Guesser — Plan
+## Add 5 AI/algorithmic guessers
 
-A personal, single-user app to pick winners for every WC 2026 match, auto-fetch real results, and tally points.
+Six total competitors: **Juhani (you)**, **Richard Random**, **Sara Statistics**, **Matt Magician**, **Adriana Idriano**, **Valerie Vibes**.
 
-## Stack & data
-- TanStack Start + Lovable Cloud (Postgres) for storing your guesses and cached fixtures.
-- Live fixtures/results from **football-data.org v4** (free tier covers WC). Requires one API key stored as `FOOTBALL_DATA_TOKEN` secret. If you prefer api-football/SportMonks, swap the fetcher — same shape.
-- Lovable Auth (magic link) gating the whole app so only you can submit picks. Single account.
+### 1. Database
 
-## Pages
-1. **`/` — Guess page**
-   - Grouped by stage (Group A–L, R32, R16, QF, SF, 3rd-place, Final).
-   - Each match: flag + country name (home), vs, flag + country (away), kickoff time, three big pick buttons (Home / Draw / Away). Draw disabled in knockout matches.
-   - Your saved pick is highlighted; locks once kickoff time passes.
-   - "AI pick" column shown as `—` placeholder (filled later).
-2. **`/results` — Results & scoreboard**
-   - Top: total score (You). AI column present but empty for now.
-   - Per-match breakdown table: match, your pick, AI pick (—), actual result, points earned, stage weight badge.
-   - Filter by stage; show accuracy %.
+Restructure `predictions`:
+- Drop existing table, recreate with `(match_id bigint, predictor text, pick text, reasoning text, model text, created_at timestamptz)`.
+- Primary key `(match_id, predictor)`.
+- Grants for `anon`/`authenticated`/`service_role` matching current single-user open setup.
+- Seed a tiny `predictors` reference table (id, name, tagline, emoji/avatar) so the UI is data-driven.
 
-## Scoring (weighted by stage)
-Group 1 · R32 2 · R16 3 · QF 5 · SF 8 · 3rd-place 8 · Final 13. Awarded only when actual outcome matches pick.
+### 2. When picks happen
 
-## Backend pieces
-- **DB tables** (`matches`, `guesses`, `predictions`) with RLS scoped to your user id.
-  - `matches`: id, stage, group, kickoff, home_team, away_team, home_flag, away_flag, status, home_score, away_score, outcome.
-  - `guesses`: user_id, match_id, pick ('home'|'draw'|'away'), created_at.
-  - `predictions` (AI slot): match_id, pick, reasoning, model.
-- **Server functions** (`src/lib/wc.functions.ts`):
-  - `listMatches()` — reads from `matches`, joined with your guess.
-  - `savePick({matchId, pick})` — upsert, rejects if kickoff passed.
-  - `getScore()` — computes total + per-match points.
-- **Sync route** `POST /api/public/sync-fixtures` — calls football-data.org `/competitions/WC/matches`, upserts into `matches`, recomputes outcomes. Protected by an `X-Sync-Secret` header. Trigger manually from a button on `/results` ("Refresh fixtures & results") and optionally by external cron later.
+Trigger: **when you save a guess for match X**, all five other predictors generate their pick for match X (only if they don't already have one and match hasn't kicked off).
 
-## Country flags
-Use `https://flagcdn.com/w80/{iso2}.png` derived from team code returned by the API — no asset bundling needed.
+Implementation: a single server function `generateCompetitorPicks(matchId)` is called after the user upsert succeeds in `handlePick`. It runs all 5 strategies in parallel and upserts results. Also exposed as a button "Generate missing picks" on /results to backfill.
 
-## Style — dark & golden
-- Background `oklch(0.16 0.02 260)` near-black with subtle radial gold glow.
-- Primary gold `oklch(0.82 0.16 85)`, accent deep gold `oklch(0.68 0.18 70)`.
-- Display font: Cinzel (championship feel); body: Inter.
-- Cards: dark surface, 1px gold border, soft gold shadow on hover.
-- Pick buttons: outlined gold → filled gold when selected; tie button uses muted gold.
+### 3. Each guesser's logic
 
-## AI slot (future-ready, not built now)
-Schema, UI column, and scoreboard row exist but inert. Adding AI later = one server function that calls Lovable AI Gateway and writes to `predictions`.
+- **Richard Random** — `Math.random()` over allowed outcomes (no draw in knockouts). Stored once so it's stable across reloads.
+- **Sara Statistics** — rule-based. Uses a static map of FIFA-style team strength ratings (hard-coded JSON for the 48 WC teams, ~lines of `{ "FRA": 2050, ... }`). Pick = higher rating wins; if |diff| < threshold and draw allowed → draw. Stored with `reasoning` like "FRA 2050 vs CAN 1480 → home".
+- **Matt Magician** — "ML-flavored" logistic scoring on the same ratings plus a small home-advantage term (none in knockouts since venues are neutral-ish, but we'll still apply a tiny stage-based prior). Computes win/draw/away probabilities via a softmax, picks argmax. Reasoning shows the probabilities (e.g. "H 54% / D 27% / A 19%").
+- **Adriana Idriano** — calls Lovable AI Gateway (`google/gemini-3-flash-preview`) via a server function. Prompt: she's a football pundit; given home team, away team, stage, group, and whether draws are allowed, return JSON `{ pick: "home"|"draw"|"away", reasoning: string }`. Uses AI SDK `Output.object` with a Zod schema. Stored with `reasoning` + `model`.
+- **Valerie Vibes** — logic intentionally not described here; implemented in code as `valerie.server.ts` so the source isn't summarized in chat. Deterministic per match.
+- **Juhani** — that's you, no generator.
 
-## Open items needing your input during build
-1. **football-data.org token** — I'll request it via the secret prompt once we start.
-2. **Auth**: confirm magic-link email is fine (vs. a simple hardcoded passcode).
-3. **Initial fixtures**: if the API doesn't yet expose WC 2026 fixtures on the free tier at build time, I'll seed the 48 teams + group-stage schedule from a static JSON fallback and let the sync route overwrite once live.
+### 4. Results page
 
----
+- Leaderboard at top: ranked list of all 6 with total points and correct/finished count. Your row highlighted in gold.
+- Per-match table: one row per match, click to expand → shows all 6 picks (with reasoning where available), actual outcome, and per-predictor points earned.
+- Stage filter kept as is.
+
+### 5. Guess page
+
+Small "Competitors" line under each match showing how many of the 5 have already locked in their pick (e.g. "5/5 rivals picked"). Their picks themselves stay hidden on the guess page so you can't peek.
 
 ### Technical details
-- Lovable Cloud for DB/auth; `requireSupabaseAuth` middleware on all server fns.
-- `matches` table public-readable to authed user; `guesses` RLS `user_id = auth.uid()`.
-- Route tree: `src/routes/index.tsx` (guess), `src/routes/results.tsx`, `src/routes/api/public/sync-fixtures.ts`.
-- Outcome derived: `home_score > away_score` → 'home', `<` → 'away', `=` → 'draw'; only set when `status='FINISHED'`.
-- Pick lock check uses server time, not client.
+
+- New files:
+  - `src/lib/predictors/types.ts` — predictor registry (id, name, tagline).
+  - `src/lib/predictors/ratings.ts` — static team strength table.
+  - `src/lib/predictors/random.ts`, `stats.ts`, `magician.ts`, `valerie.server.ts` — strategies.
+  - `src/lib/predictors/adriana.server.ts` — AI call (server-only).
+  - `src/lib/predictors.functions.ts` — `generateCompetitorPicks({ matchId })` server fn that fans out, plus `generateAllMissing()` for backfill.
+- `src/routes/index.tsx` — after `supabase.from("guesses").upsert(...)` succeeds, call `useServerFn(generateCompetitorPicks)` for that match; also load `predictions` to show the rivals-picked counter.
+- `src/routes/results.tsx` — replace AI-only stats with a 6-way leaderboard + expandable rows showing every predictor's pick & reasoning.
+- AI usage uses Lovable AI Gateway per `ai-sdk-lovable-gateway` (no key prompting; `LOVABLE_API_KEY` already set).
+- Migration restructures `predictions`; existing rows are wiped (none in use).
