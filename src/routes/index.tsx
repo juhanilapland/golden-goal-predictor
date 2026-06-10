@@ -178,6 +178,13 @@ function GuessPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      handleSync();
+    }, 10 * 60 * 1000); // auto-refresh every 10 minutes
+    return () => clearInterval(interval);
+  }, [handleSync]);
+
   const handlePick = useCallback(
     async (matchId: number, p: Pick) => {
       const prev = guesses[matchId];
