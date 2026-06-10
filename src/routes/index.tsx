@@ -207,6 +207,10 @@ function GuessPage() {
         toast.error("Sync failed: " + (json.error ?? res.status));
       } else {
         toast.success(`Synced ${json.synced} matches`);
+        if (json.syncedAt) {
+          localStorage.setItem("wc26_last_synced", json.syncedAt);
+          setLastSynced(json.syncedAt);
+        }
         await load();
       }
     } catch (e) {
