@@ -157,11 +157,20 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
       .map((p) => ({ predictor: p.predictor, pick: p.pick as Pick, reasoning: p.reasoning })),
   }));
 
+  // Load persona overrides from DB; fall back to code defaults per rival.
+  const { data: personaRows } = await supabaseAdmin
+    .from("rival_personas")
+    .select("rival_id, persona");
+  const personaOverrides = new Map<string, string>(
+    (personaRows ?? []).map((r) => [r.rival_id, r.persona]),
+  );
+
   let replied = 0;
   let runningChat: ChatRow[] = [...chat];
 
   for (const rivalId of todo) {
-    const prompt = buildPrompt(rivalId, RIVAL_PERSONAS[rivalId], matchesWithPreds, runningChat, matchesHeader);
+    const persona = personaOverrides.get(rivalId) ?? RIVAL_PERSONAS[rivalId];
+    const prompt = buildPrompt(rivalId, persona, matchesWithPreds, runningChat, matchesHeader);
     const message = await callGateway(apiKey, prompt);
     if (message) {
       const { data: inserted } = await supabaseAdmin
