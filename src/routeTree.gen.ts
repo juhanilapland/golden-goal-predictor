@@ -9,10 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RoomRouteImport } from './routes/room'
 import { Route as ResultsRouteImport } from './routes/results'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicSyncFixturesRouteImport } from './routes/api/public/sync-fixtures'
 
+const RoomRoute = RoomRouteImport.update({
+  id: '/room',
+  path: '/room',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResultsRoute = ResultsRouteImport.update({
   id: '/results',
   path: '/results',
@@ -32,35 +38,46 @@ const ApiPublicSyncFixturesRoute = ApiPublicSyncFixturesRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/results': typeof ResultsRoute
+  '/room': typeof RoomRoute
   '/api/public/sync-fixtures': typeof ApiPublicSyncFixturesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/results': typeof ResultsRoute
+  '/room': typeof RoomRoute
   '/api/public/sync-fixtures': typeof ApiPublicSyncFixturesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/results': typeof ResultsRoute
+  '/room': typeof RoomRoute
   '/api/public/sync-fixtures': typeof ApiPublicSyncFixturesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/results' | '/api/public/sync-fixtures'
+  fullPaths: '/' | '/results' | '/room' | '/api/public/sync-fixtures'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/results' | '/api/public/sync-fixtures'
-  id: '__root__' | '/' | '/results' | '/api/public/sync-fixtures'
+  to: '/' | '/results' | '/room' | '/api/public/sync-fixtures'
+  id: '__root__' | '/' | '/results' | '/room' | '/api/public/sync-fixtures'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ResultsRoute: typeof ResultsRoute
+  RoomRoute: typeof RoomRoute
   ApiPublicSyncFixturesRoute: typeof ApiPublicSyncFixturesRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/room': {
+      id: '/room'
+      path: '/room'
+      fullPath: '/room'
+      preLoaderRoute: typeof RoomRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/results': {
       id: '/results'
       path: '/results'
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ResultsRoute: ResultsRoute,
+  RoomRoute: RoomRoute,
   ApiPublicSyncFixturesRoute: ApiPublicSyncFixturesRoute,
 }
 export const routeTree = rootRouteImport

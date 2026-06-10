@@ -1,49 +1,78 @@
-## Add 5 AI/algorithmic guessers
+## Game Room
 
-Six total competitors: **Juhani (you)**, **Richard Random**, **Sara Statistics**, **Matt Magician**, **Adriana Idriano**, **Valerie Vibes**.
+A single global chat room on a new `/room` route. You post first; the 5 rivals reply one after another with short staggered delays. Each rival has a written persona prompt and uses Lovable AI to generate their message based on the recent match results, their own picks vs actual outcomes, and the current chat transcript.
 
 ### 1. Database
 
-Restructure `predictions`:
-- Drop existing table, recreate with `(match_id bigint, predictor text, pick text, reasoning text, model text, created_at timestamptz)`.
-- Primary key `(match_id, predictor)`.
-- Grants for `anon`/`authenticated`/`service_role` matching current single-user open setup.
-- Seed a tiny `predictors` reference table (id, name, tagline, emoji/avatar) so the UI is data-driven.
+New migration:
+- `chat_messages` table: `id uuid pk`, `author text not null` (one of `juhani`, `random`, `stats`, `magician`, `adriana`, `vibes`), `body text not null`, `created_at timestamptz default now()`.
+- Index on `created_at`.
+- Open RLS (matches the single-user style of `guesses`): anyone can read, anyone can insert. No update/delete from client.
+- Enable Realtime on the table so new messages stream in live.
 
-### 2. When picks happen
+### 2. Personas
 
-Trigger: **when you save a guess for match X**, all five other predictors generate their pick for match X (only if they don't already have one and match hasn't kicked off).
+Add `persona` (and keep existing `tagline`) on each rival. Each persona is a short paragraph telling the AI how that rival writes:
 
-Implementation: a single server function `generateCompetitorPicks(matchId)` is called after the user upsert succeeds in `handlePick`. It runs all 5 strategies in parallel and upserts results. Also exposed as a button "Generate missing picks" on /results to backfill.
+- **Richard Random** — chaotic, blames/credits luck, dice metaphors, sometimes types in ALL CAPS one word.
+- **Sara Statistics** — dry, precise, cites ratings and historical patterns, ends with a probability or number.
+- **Matt Magician** — cocky data-scientist energy, drops "the model said", logits/probabilities, mild gloating when right.
+- **Adriana Idriano** — pundit on a sports panel, dramatic one-liners, Italian/Spanish football clichés, witty.
+- **Valerie Vibes** — mystical, lowercase, emojis, talks about auras/tides/cards, never admits being wrong.
 
-### 3. Each guesser's logic
+Stored in code (`src/lib/predictors/personas.ts`) so the source of truth is versioned, not in the DB.
 
-- **Richard Random** — `Math.random()` over allowed outcomes (no draw in knockouts). Stored once so it's stable across reloads.
-- **Sara Statistics** — rule-based. Uses a static map of FIFA-style team strength ratings (hard-coded JSON for the 48 WC teams, ~lines of `{ "FRA": 2050, ... }`). Pick = higher rating wins; if |diff| < threshold and draw allowed → draw. Stored with `reasoning` like "FRA 2050 vs CAN 1480 → home".
-- **Matt Magician** — "ML-flavored" logistic scoring on the same ratings plus a small home-advantage term (none in knockouts since venues are neutral-ish, but we'll still apply a tiny stage-based prior). Computes win/draw/away probabilities via a softmax, picks argmax. Reasoning shows the probabilities (e.g. "H 54% / D 27% / A 19%").
-- **Adriana Idriano** — calls Lovable AI Gateway (`google/gemini-3-flash-preview`) via a server function. Prompt: she's a football pundit; given home team, away team, stage, group, and whether draws are allowed, return JSON `{ pick: "home"|"draw"|"away", reasoning: string }`. Uses AI SDK `Output.object` with a Zod schema. Stored with `reasoning` + `model`.
-- **Valerie Vibes** — logic intentionally not described here; implemented in code as `valerie.server.ts` so the source isn't summarized in chat. Deterministic per match.
-- **Juhani** — that's you, no generator.
+### 3. Reply trigger and staggering
 
-### 4. Results page
+When you submit a message in the room:
+1. Insert your message immediately.
+2. Server fn `generateRoomReplies({ sinceMessageId })` runs the 5 rivals **sequentially** with a small randomized delay (1.5–4s) between each. Each insert lands in `chat_messages` and the UI receives it via Realtime, so it feels like they're typing in.
+3. Replies are deduped: if rivals already replied to the most recent user message, the trigger is a no-op (prevents double-fire on reload).
 
-- Leaderboard at top: ranked list of all 6 with total points and correct/finished count. Your row highlighted in gold.
-- Per-match table: one row per match, click to expand → shows all 6 picks (with reasoning where available), actual outcome, and per-predictor points earned.
-- Stage filter kept as is.
+Rate limit: the room is locked from sending a new user message until all rivals have replied to the previous one (UI shows "rivals replying…").
 
-### 5. Guess page
+### 4. Per-rival AI input
 
-Small "Competitors" line under each match showing how many of the 5 have already locked in their pick (e.g. "5/5 rivals picked"). Their picks themselves stay hidden on the guess page so you can't peek.
+For each rival, the prompt is built from:
+- **My style**: their persona paragraph.
+- **My guess**: their pick rows from `predictions` for the latest N finished matches, with reasoning.
+- **Actual result**: home/away score, outcome, and points they earned for each of those matches.
+- **Current chat messages**: last ~20 messages in the room, formatted as `name: body`.
 
-### Technical details
+Then: "Write your next message in the chat (max 2 sentences, in character). Do not prefix with your name."
 
-- New files:
-  - `src/lib/predictors/types.ts` — predictor registry (id, name, tagline).
-  - `src/lib/predictors/ratings.ts` — static team strength table.
-  - `src/lib/predictors/random.ts`, `stats.ts`, `magician.ts`, `valerie.server.ts` — strategies.
-  - `src/lib/predictors/adriana.server.ts` — AI call (server-only).
-  - `src/lib/predictors.functions.ts` — `generateCompetitorPicks({ matchId })` server fn that fans out, plus `generateAllMissing()` for backfill.
-- `src/routes/index.tsx` — after `supabase.from("guesses").upsert(...)` succeeds, call `useServerFn(generateCompetitorPicks)` for that match; also load `predictions` to show the rivals-picked counter.
-- `src/routes/results.tsx` — replace AI-only stats with a 6-way leaderboard + expandable rows showing every predictor's pick & reasoning.
-- AI usage uses Lovable AI Gateway per `ai-sdk-lovable-gateway` (no key prompting; `LOVABLE_API_KEY` already set).
-- Migration restructures `predictions`; existing rows are wiped (none in use).
+Model: `google/gemini-2.5-flash`. JSON response with `{ message: string }` so we can sanity-check length and strip accidental name prefixes. Fallback on AI failure: skip that rival's turn (don't insert a "(AI unavailable)" line — keeps the room clean).
+
+### 5. UI
+
+New route `src/routes/room.tsx`:
+- Header with link back to `/` and `/results`.
+- Scrollable message list, bubbles with avatar + name. Your messages right-aligned in gold; rivals left-aligned.
+- Composer at the bottom: textarea + Send button. Disabled while rivals are replying; shows a "Adriana is typing…" indicator cycling through the pending rivals.
+- Auto-scroll to bottom on new message.
+- Empty state: a small note "Drop your hot take. The rivals will chime in."
+
+Add a "Game room" nav link on `/` and `/results`.
+
+### 6. Technical details
+
+- **New files**:
+  - `src/lib/predictors/personas.ts` — persona text per rival.
+  - `src/lib/room.functions.ts` — `generateRoomReplies` server fn.
+  - `src/routes/room.tsx` — chat UI with Realtime subscription.
+- **Migration**: `chat_messages` table with open RLS + grants + add to `supabase_realtime` publication.
+- **Server fn flow** (`generateRoomReplies`):
+  1. Load last 20 chat messages.
+  2. Find the most recent user (`juhani`) message; if every rival already has a message after it → return.
+  3. Load the latest ~5 finished matches with each rival's prediction and the actual outcome (single query joining `matches` + `predictions`).
+  4. For each rival in fixed order (random, stats, magician, adriana, vibes), build the prompt, call gateway, insert message, await randomized delay before the next.
+- **Realtime**: subscribe in `room.tsx` to `chat_messages` inserts; append to local state.
+- **Trigger**: client calls `generateRoomReplies` after inserting the user message (fire-and-forget; the response trickles in via Realtime).
+- **Reuses** existing Lovable AI Gateway pattern already in `predictors.functions.ts`.
+
+### 7. Out of scope
+
+- No threading/quoting individual messages.
+- No editing or deleting messages.
+- Juhani is the only human author; no auth/profiles needed (matches the rest of the app).
+- No notifications when you're not on `/room`.
