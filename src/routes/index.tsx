@@ -152,6 +152,7 @@ function MatchRow({
 function GuessPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [guesses, setGuesses] = useState<Record<number, Pick>>({});
+  const [rivalCounts, setRivalCounts] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(() => {
@@ -161,11 +162,14 @@ function GuessPage() {
     return null;
   });
 
+  const generatePicks = useServerFn(generateCompetitorPicks);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const [{ data: m }, { data: g }] = await Promise.all([
+    const [{ data: m }, { data: g }, { data: preds }] = await Promise.all([
       supabase.from("matches").select("*").order("kickoff", { ascending: true }),
       supabase.from("guesses").select("match_id, pick"),
+      supabase.from("predictions").select("match_id, predictor"),
     ]);
     setMatches((m ?? []) as Match[]);
     const map: Record<number, Pick> = {};
@@ -173,6 +177,11 @@ function GuessPage() {
       map[row.match_id] = row.pick as Pick;
     });
     setGuesses(map);
+    const counts: Record<number, number> = {};
+    (preds ?? []).forEach((r) => {
+      counts[r.match_id] = (counts[r.match_id] ?? 0) + 1;
+    });
+    setRivalCounts(counts);
     setLoading(false);
   }, []);
 
@@ -195,10 +204,23 @@ function GuessPage() {
           return next;
         });
         toast.error("Could not save pick: " + error.message);
+        return;
       }
+      // Fire-and-forget: have the 5 rivals lock in their picks for this match.
+      generatePicks({ data: { matchId } })
+        .then((res) => {
+          if (res?.generated) {
+            setRivalCounts((c) => ({ ...c, [matchId]: Math.min(5, (c[matchId] ?? 0) + res.generated) }));
+          }
+        })
+        .catch((e) => {
+          console.warn("Competitor picks failed", e);
+        });
     },
-    [guesses],
+    [guesses, generatePicks],
   );
+
+
 
   const handleSync = useCallback(async () => {
     setSyncing(true);
