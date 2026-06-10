@@ -210,8 +210,20 @@ function ResultsPage() {
               >
                 <td className="px-4 py-3 font-display text-[--gold-dim]">{i + 1}</td>
                 <td className="px-4 py-3">
-                  <div className="font-display">{p.name}</div>
-                  <div className="text-[10px] text-muted-foreground">{p.tagline}</div>
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={AVATARS[p.id]}
+                      alt={p.name}
+                      width={40}
+                      height={40}
+                      loading="lazy"
+                      className="w-10 h-10 rounded-full object-cover ring-1 ring-[--gold-deep] shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="font-display truncate">{p.name}</div>
+                      <div className="text-[10px] text-muted-foreground truncate">{p.tagline}</div>
+                    </div>
+                  </div>
                 </td>
                 <td className="text-right px-4 py-3 text-muted-foreground">
                   {p.correct}/{p.finished}
