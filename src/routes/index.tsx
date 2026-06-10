@@ -97,10 +97,12 @@ function PickButton({
 function MatchRow({
   match,
   pick,
+  rivalCount,
   onPick,
 }: {
   match: Match;
   pick: Pick | undefined;
+  rivalCount: number;
   onPick: (p: Pick) => void;
 }) {
   const locked = new Date(match.kickoff).getTime() <= Date.now() || match.status !== "SCHEDULED" && match.status !== "TIMED";
@@ -116,7 +118,9 @@ function MatchRow({
         {kickoff.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
         <span className="ml-1 text-[--gold-dim]">EEST</span>
         {match.group_name && <div className="mt-1 text-[--gold-dim]">{match.group_name}</div>}
+        <div className="mt-1 text-[--gold-dim]">{rivalCount}/5 rivals</div>
       </div>
+
 
       <div className="flex-1 flex items-center justify-center gap-2 sm:gap-6 min-w-0">
         <div className="flex items-center gap-2 flex-1 justify-end text-right min-w-0">
