@@ -272,31 +272,54 @@ function ResultsPage() {
         </div>
       ) : (
         <div className="gold-border bg-card rounded-lg overflow-hidden">
-          {visibleRows.map(({ m, actual }) => {
+          {visibleRows.map(({ m, actual }, idx) => {
             const isOpen = expanded === m.id;
+            const finished = actual !== null;
+            const upcoming = m.status === "SCHEDULED" || m.status === "TIMED";
             return (
-              <div key={m.id} className="border-t border-[--gold-deep]/30 first:border-t-0">
+              <div
+                key={m.id}
+                className={`border-t border-[--gold-deep]/30 first:border-t-0 ${
+                  isOpen ? "bg-[--gold]/[0.04]" : idx % 2 === 1 ? "bg-card/60" : ""
+                }`}
+              >
                 <button
                   onClick={() => setExpanded(isOpen ? null : m.id)}
                   className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/30 transition"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="font-display text-sm truncate">
-                      {m.home_team} <span className="text-[--gold-dim]">vs</span> {m.away_team}
+                      {m.home_team} <span className="text-[--gold-dim] text-[10px] tracking-widest">VS</span> {m.away_team}
                     </div>
-                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
                       {stageLabel(m.stage)}
                       {m.group_name ? ` · ${m.group_name}` : ""}
                     </div>
                   </div>
-                  <div className="text-sm text-muted-foreground w-16 text-right">
-                    {actual
-                      ? `${m.home_score}–${m.away_score}`
-                      : m.status === "SCHEDULED" || m.status === "TIMED"
-                      ? "—"
-                      : m.status}
+                  <div className="w-20 text-right shrink-0">
+                    {finished ? (
+                      <>
+                        <div className="font-display text-base text-[--gold] leading-none border-b border-[--gold-deep]/60 pb-0.5 inline-block">
+                          {m.home_score}–{m.away_score}
+                        </div>
+                        <div className="text-[9px] uppercase tracking-widest text-[--gold-dim] mt-1">FT</div>
+                      </>
+                    ) : upcoming ? (
+                      <span className="text-muted-foreground text-sm">—</span>
+                    ) : (
+                      <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{m.status}</span>
+                    )}
                   </div>
-                  <div className="text-[--gold-dim] text-xs w-4">{isOpen ? "▾" : "▸"}</div>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className={`w-4 h-4 text-[--gold-dim] shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`}
+                    aria-hidden
+                  >
+                    <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                 </button>
                 {isOpen && (
                   <div className="px-4 pb-4 space-y-2 bg-background/30">
