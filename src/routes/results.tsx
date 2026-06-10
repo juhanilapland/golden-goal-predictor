@@ -11,6 +11,22 @@ import {
   type Pick,
 } from "@/lib/wc-config";
 import { toast } from "sonner";
+import avatarJuhani from "@/assets/avatar-juhani.jpg";
+import avatarRandom from "@/assets/avatar-random.jpg";
+import avatarStats from "@/assets/avatar-stats.jpg";
+import avatarMagician from "@/assets/avatar-magician.jpg";
+import avatarAdriana from "@/assets/avatar-adriana.jpg";
+import avatarVibes from "@/assets/avatar-vibes.jpg";
+
+const AVATARS: Record<string, string> = {
+  juhani: avatarJuhani,
+  random: avatarRandom,
+  stats: avatarStats,
+  magician: avatarMagician,
+  adriana: avatarAdriana,
+  vibes: avatarVibes,
+};
+
 
 type Match = {
   id: number;
