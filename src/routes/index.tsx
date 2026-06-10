@@ -21,7 +21,7 @@ type Match = {
   status: string;
 };
 
-type Guess = { match_id: number; pick: Pick };
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
