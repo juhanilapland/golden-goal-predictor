@@ -359,19 +359,11 @@ function PodiumTile({
           −{gap} from leader
         </div>
       )}
-      {hasData && rank === 1 && leaderboard1Gap(row, leaderPoints) && (
-        <div className="text-[10px] uppercase tracking-widest text-[--gold]">
-          {leaderboard1Gap(row, leaderPoints)}
-        </div>
-      )}
     </div>
   );
 }
 
-// not actually used to compute lead — kept for compatibility, lead computed in RestOfTable
-function leaderboard1Gap(_row: LeaderRow, _leaderPoints: number): string | null {
-  return null;
-}
+
 
 function RestOfTable({
   leaderboard,
