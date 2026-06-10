@@ -14,7 +14,118 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      guesses: {
+        Row: {
+          created_at: string
+          match_id: number
+          pick: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          match_id: number
+          pick: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          match_id?: number
+          pick?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guesses_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: true
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      matches: {
+        Row: {
+          away_code: string | null
+          away_score: number | null
+          away_team: string
+          created_at: string
+          group_name: string | null
+          home_code: string | null
+          home_score: number | null
+          home_team: string
+          id: number
+          kickoff: string
+          outcome: string | null
+          stage: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          away_code?: string | null
+          away_score?: number | null
+          away_team: string
+          created_at?: string
+          group_name?: string | null
+          home_code?: string | null
+          home_score?: number | null
+          home_team: string
+          id: number
+          kickoff: string
+          outcome?: string | null
+          stage: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          away_code?: string | null
+          away_score?: number | null
+          away_team?: string
+          created_at?: string
+          group_name?: string | null
+          home_code?: string | null
+          home_score?: number | null
+          home_team?: string
+          id?: number
+          kickoff?: string
+          outcome?: string | null
+          stage?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      predictions: {
+        Row: {
+          created_at: string
+          match_id: number
+          model: string | null
+          pick: string
+          reasoning: string | null
+        }
+        Insert: {
+          created_at?: string
+          match_id: number
+          model?: string | null
+          pick: string
+          reasoning?: string | null
+        }
+        Update: {
+          created_at?: string
+          match_id?: number
+          model?: string | null
+          pick?: string
+          reasoning?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "predictions_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: true
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
