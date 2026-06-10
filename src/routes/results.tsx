@@ -11,6 +11,22 @@ import {
   type Pick,
 } from "@/lib/wc-config";
 import { toast } from "sonner";
+import avatarJuhani from "@/assets/avatar-juhani.jpg";
+import avatarRandom from "@/assets/avatar-random.jpg";
+import avatarStats from "@/assets/avatar-stats.jpg";
+import avatarMagician from "@/assets/avatar-magician.jpg";
+import avatarAdriana from "@/assets/avatar-adriana.jpg";
+import avatarVibes from "@/assets/avatar-vibes.jpg";
+
+const AVATARS: Record<string, string> = {
+  juhani: avatarJuhani,
+  random: avatarRandom,
+  stats: avatarStats,
+  magician: avatarMagician,
+  adriana: avatarAdriana,
+  vibes: avatarVibes,
+};
+
 
 type Match = {
   id: number;
@@ -194,8 +210,20 @@ function ResultsPage() {
               >
                 <td className="px-4 py-3 font-display text-[--gold-dim]">{i + 1}</td>
                 <td className="px-4 py-3">
-                  <div className="font-display">{p.name}</div>
-                  <div className="text-[10px] text-muted-foreground">{p.tagline}</div>
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={AVATARS[p.id]}
+                      alt={p.name}
+                      width={40}
+                      height={40}
+                      loading="lazy"
+                      className="w-10 h-10 rounded-full object-cover ring-1 ring-[--gold-deep] shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="font-display truncate">{p.name}</div>
+                      <div className="text-[10px] text-muted-foreground truncate">{p.tagline}</div>
+                    </div>
+                  </div>
                 </td>
                 <td className="text-right px-4 py-3 text-muted-foreground">
                   {p.correct}/{p.finished}
@@ -284,10 +312,18 @@ function ResultsPage() {
                       return (
                         <div
                           key={pr.id}
-                          className="flex items-start gap-3 text-xs py-1 border-t border-[--gold-deep]/15 first:border-t-0"
+                          className="flex items-center gap-3 text-xs py-2 border-t border-[--gold-deep]/15 first:border-t-0"
                         >
-                          <div className="w-32 sm:w-40 shrink-0">
-                            <div className="font-display">{pr.name}</div>
+                          <img
+                            src={AVATARS[pr.id]}
+                            alt={pr.name}
+                            width={28}
+                            height={28}
+                            loading="lazy"
+                            className="w-7 h-7 rounded-full object-cover ring-1 ring-[--gold-deep] shrink-0"
+                          />
+                          <div className="w-24 sm:w-32 shrink-0">
+                            <div className="font-display truncate">{pr.name}</div>
                           </div>
                           <div className="w-16 shrink-0">
                             <PickPill pick={pick} correct={correct} />
