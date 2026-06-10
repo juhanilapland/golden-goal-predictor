@@ -24,8 +24,6 @@ type Match = {
   outcome: string | null;
 };
 
-type Guess = { match_id: number; pick: Pick };
-type Prediction = { match_id: number; pick: Pick };
 
 export const Route = createFileRoute("/results")({
   head: () => ({
