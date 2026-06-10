@@ -91,14 +91,16 @@ function MatchRow({
 }) {
   const locked = new Date(match.kickoff).getTime() <= Date.now() || match.status !== "SCHEDULED" && match.status !== "TIMED";
   const knockout = isKnockout(match.stage);
-  const kickoff = new Date(match.kickoff);
+  // football-data.org returns UTC; display in Helsinki (EEST, UTC+3)
+  const kickoff = new Date(new Date(match.kickoff).getTime() + 3 * 60 * 60 * 1000);
 
   return (
     <div className="gold-border bg-card rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
       <div className="text-[10px] uppercase tracking-widest text-muted-foreground sm:w-28">
-        {kickoff.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+        {kickoff.toLocaleDateString("en-GB", { month: "short", day: "numeric" })}
         <br />
-        {kickoff.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        {kickoff.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+        <span className="ml-1 text-[--gold-dim]">EEST</span>
         {match.group_name && <div className="mt-1 text-[--gold-dim]">{match.group_name}</div>}
       </div>
 
