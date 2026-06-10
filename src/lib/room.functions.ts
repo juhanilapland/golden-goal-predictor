@@ -161,7 +161,7 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
   let runningChat: ChatRow[] = [...chat];
 
   for (const rivalId of todo) {
-    const prompt = buildPrompt(rivalId, RIVAL_PERSONAS[rivalId], matchesWithPreds, runningChat);
+    const prompt = buildPrompt(rivalId, RIVAL_PERSONAS[rivalId], matchesWithPreds, runningChat, matchesHeader);
     const message = await callGateway(apiKey, prompt);
     if (message) {
       const { data: inserted } = await supabaseAdmin
