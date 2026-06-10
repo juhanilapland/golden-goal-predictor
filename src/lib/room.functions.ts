@@ -1,6 +1,21 @@
 import { createServerFn } from "@tanstack/react-start";
-import { RIVAL_ORDER, RIVAL_NAMES, RIVAL_PERSONAS, type RivalId } from "@/lib/predictors/personas";
+import {
+  RIVAL_ORDER,
+  RIVAL_NAMES,
+  RIVAL_PERSONAS,
+  RIVAL_LOYALTIES,
+  type RivalId,
+} from "@/lib/predictors/personas";
 import { outcomeFromScore, stageWeight, type Pick } from "@/lib/wc-config";
+
+type Standing = {
+  rivalId: RivalId;
+  points: number;
+  correct: number;
+  total: number;
+  rank: number;
+  streak: string; // e.g. "WWLW-" (most recent last)
+};
 
 type ChatRow = { author: string; body: string; created_at: string };
 
