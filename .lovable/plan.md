@@ -1,79 +1,51 @@
-## Goal
+# Refine Match Card Design
 
-Add a `/personas` tab where you can edit each rival's chat persona. Edits are stored in the database and used immediately the next time the room generates replies. If a rival has no DB row, fall back to the hardcoded text in `src/lib/predictors/personas.ts`.
+Keep the established gold-on-dark luxury theme, Cinzel display type, and horizontal row layout. Tighten visual hierarchy, increase polish, and make the cards feel like collectible programme entries.
 
-## Brainstorm seeds (suggested defaults in the editor)
+## Scope
 
-For each rival, the textarea will be prefilled with a sharper persona than today. Same five rivals, but with:
+Two surfaces:
+1. `MatchRow` on `/` (Guess page) — picks UI
+2. The collapsed match row on `/results` — score + expand
 
-- **Worldview** — what they believe football is
-- **Obsession** — a recurring lens (numbers, dice, drama, cards…)
-- **Rival** — who they bicker with in the room
-- **When right / when wrong** — how they react
-- **Don'ts** — guardrails to prevent drift (length, no apologies, no breaking character)
+Out of scope: leaderboard table, persona workshop, expanded reasoning rows, color palette / font changes.
 
-Example for Sara: *"You are Sara Statistics, a dry analyst. You believe football is mostly variance around team ratings; narrative is noise. Always cite one specific number (xG, rating diff, base rate). You bicker with Matt — he thinks his ML model invalidates classical stats. When right, you state the prior. When wrong, you blame variance, never your method. Never use exclamation marks. Max 2 sentences."*
+## Visual changes
 
-The editor will ship these as defaults; you can rewrite any of them inline.
+### Match row card (`/`)
+- Reframe each card as a "stadium ticket" still in a single horizontal row:
+  - Left **kickoff stub** with vertical divider (date stacked, time large in Cinzel gold, EEST tag, group chip, rivals-locked pill with a small lock/check icon — 0/5 dim, 5/5 glows).
+  - Center **matchup**: bigger flags (56px) with a soft gold ring + drop shadow, team names in Cinzel medium, an ornate `vs` glyph (small gold serif "·VS·" between two thin gold rules) instead of plain text.
+  - Right **pick cluster**: Home / Draw / Away buttons get a connected segmented-control look (shared border, no gap), active state uses gold gradient fill + inset shadow, locked state shows a subtle padlock glyph and removes hover.
+- Add a thin gold top accent line on cards where the user has locked a pick (visual confirmation).
+- Hover: card lifts (translate-y-[1px] → -1px), gold border brightens, soft outer glow.
+- Knockout matches get a small "KO" gilded chip in the corner.
 
-## Database
+### Results match row (`/results`)
+- Same stub treatment on the left for stage + group.
+- Replace plain `▾ / ▸` with a gold chevron icon that rotates on open.
+- Score block: bold Cinzel score (e.g. `2–1`) with a thin gold underline, "FT" tag underneath when finished; for upcoming, show a muted dash.
+- Subtle alternating row background (even rows `bg-card`, odd rows `bg-card/60`) so the long list scans easier.
+- Open state: top border becomes solid gold for the open row.
 
-Migration: new table `rival_personas`.
+### Shared polish
+- Add a reusable `card-elevated` utility in `src/styles.css` for the lift/glow.
+- Add a `segmented` utility for the connected pick buttons (shared border + dividers).
+- Add a `chip-gold` utility for the small KO / group / rivals badges.
 
-| column | type | notes |
-|---|---|---|
-| `rival_id` | text PK | one of random, stats, magician, adriana, vibes |
-| `persona` | text not null | the prompt body |
-| `updated_at` | timestamptz default now() | bumped by trigger |
+## Mobile (360px)
+- Date stub collapses to a single line above the matchup; pick segmented control stretches full-width below.
+- Flags stay 44px on mobile to keep team names readable; use `min-w-0` + `truncate` on team labels.
+- Results row: chevron stays right-aligned, score stays compact (~56px column).
 
-- Grants: SELECT/INSERT/UPDATE/DELETE to anon + authenticated; ALL to service_role (matches app's existing single-user open style — guesses table follows the same pattern).
-- RLS enabled, two policies: anyone can read, anyone can write (consistent with `guesses`).
-- Update trigger reuses existing `public.touch_updated_at()`.
+## Technical notes
+- Edits in `src/routes/index.tsx` (`Flag`, `PickButton`, `MatchRow`) and `src/routes/results.tsx` (collapsed row only).
+- New utilities + tiny keyframe for the locked-pick accent line in `src/styles.css`.
+- Use existing `--gold`, `--gold-dim`, `--gold-deep` tokens — no new colors.
+- Icons: small inline SVGs (lock, check, chevron) — no new dependency.
 
-## Server functions
-
-New file `src/lib/personas.functions.ts`:
-
-- `listPersonas()` — returns `Array<{ rival_id, persona, updated_at, isDefault }>`. Reads `rival_personas` and merges with `RIVAL_PERSONAS` so missing rows show the hardcoded default with `isDefault=true`.
-- `savePersona({ rival_id, persona })` — upsert into `rival_personas`. Trims and length-checks (max ~2000 chars). Validates rival_id against `RIVAL_ORDER`.
-- `resetPersona({ rival_id })` — delete the row so the code default takes over again.
-
-## Wire into room replies
-
-In `src/lib/room.functions.ts`, before the rival loop:
-
-- Fetch all `rival_personas` rows in one query.
-- Build `personasMap: Record<RivalId, string>` = DB row if present, else `RIVAL_PERSONAS[rivalId]`.
-- Pass `personasMap[rivalId]` into `buildPrompt` instead of `RIVAL_PERSONAS[rivalId]`.
-
-No prompt-shape change, no token impact.
-
-## UI
-
-New route `src/routes/personas.tsx`:
-
-- Title "Persona Workshop" + short blurb explaining the inputs each rival receives (style, their picks, actual results, recent chat).
-- For each of the 5 rivals (in `RIVAL_ORDER`):
-  - Avatar + name + tagline (reuse `RIVAL_NAMES` + existing avatars from results route).
-  - A `<textarea>` (10–14 rows, monospace-ish, character counter, ~2000 max) prefilled with current value.
-  - "Save", "Reset to default", and a small "default" / "customized" badge.
-  - Save button disabled until dirty; toast on success/failure.
-- All five cards rendered in a single column on mobile, two columns on `md+`.
-
-Add nav link "Personas" in `__root.tsx` alongside Room / Results.
-
-## Out of scope (deliberately not in this round)
-
-- No editing of prediction prompts in `predictors.functions.ts`.
-- No global/system prompt above personas — that was option C and you picked A.
-- No version history / undo beyond the single "reset to default" action.
-- No auth gate (public tab, matches the rest of the app).
-- No live preview of a generated message — keep the editor simple; test by going to `/room` and sending a message.
-
-## Files
-
-- new: `supabase/migrations/<ts>_create_rival_personas.sql`
-- new: `src/lib/personas.functions.ts`
-- new: `src/routes/personas.tsx`
-- edit: `src/lib/room.functions.ts` (merge persona overrides into the loop)
-- edit: `src/routes/__root.tsx` (nav link)
+## Acceptance
+- Cards have clear three-zone rhythm (stub · matchup · picks) at ≥640px.
+- Locked picks visually distinct from open ones at a glance.
+- No layout regression at 360px (no horizontal scroll, no clipped team names).
+- All existing functionality preserved (pick saving, rival generation, expand/collapse, score display).
