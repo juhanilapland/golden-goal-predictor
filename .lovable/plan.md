@@ -1,41 +1,79 @@
 ## Goal
 
-Make the rivals talk about **every match finished since the last chat activity**, instead of always the latest 5 finished matches. This fits the "extract results once per day → several matches at once" flow.
+Add a `/personas` tab where you can edit each rival's chat persona. Edits are stored in the database and used immediately the next time the room generates replies. If a rival has no DB row, fall back to the hardcoded text in `src/lib/predictors/personas.ts`.
 
-## Change
+## Brainstorm seeds (suggested defaults in the editor)
 
-Single file: `src/lib/room.functions.ts`, inside `generateRoomReplies`.
+For each rival, the textarea will be prefilled with a sharper persona than today. Same five rivals, but with:
 
-### New logic for the "recent matches" load
+- **Worldview** — what they believe football is
+- **Obsession** — a recurring lens (numbers, dice, drama, cards…)
+- **Rival** — who they bicker with in the room
+- **When right / when wrong** — how they react
+- **Don'ts** — guardrails to prevent drift (length, no apologies, no breaking character)
 
-1. Determine `sinceTs`:
-   - If the chat has at least one message before the new juhani message → use `created_at` of the chat message immediately preceding it.
-   - If juhani's message is the very first in the room → use `now() - 7 days` (sensible cold-start window).
-2. Query `matches`:
-   - `status = 'FINISHED'`
-   - `updated_at > sinceTs`
-   - order by `kickoff` ascending (chronological story of the day)
-   - limit 20 (safety cap for huge sync days)
-3. Fallback: if that query returns **zero** rows, load the latest 3 finished matches (ordered by kickoff desc, then reversed to asc) so the room still has something to riff on during quiet days.
-4. Load predictions for those match ids exactly as today.
+Example for Sara: *"You are Sara Statistics, a dry analyst. You believe football is mostly variance around team ratings; narrative is noise. Always cite one specific number (xG, rating diff, base rate). You bicker with Matt — he thinks his ML model invalidates classical stats. When right, you state the prior. When wrong, you blame variance, never your method. Never use exclamation marks. Max 2 sentences."*
 
-### Prompt tweak
+The editor will ship these as defaults; you can rewrite any of them inline.
 
-In `buildPrompt`, change the section header from
-`Recent finished matches and how you did:`
-to
-`Matches finished since the last chat (chronological):`
-when we're in the "new since last chat" branch, and keep the old wording for the fallback branch. Keeps the model grounded in what's actually new vs. old context.
+## Database
 
-## Out of scope
+Migration: new table `rival_personas`.
 
-- No DB changes (`matches.updated_at` and `chat_messages.created_at` already exist).
-- No UI changes.
-- No token/cost logging (deferred per your call).
-- No change to the 20-message chat-transcript window or persona files.
+| column | type | notes |
+|---|---|---|
+| `rival_id` | text PK | one of random, stats, magician, adriana, vibes |
+| `persona` | text not null | the prompt body |
+| `updated_at` | timestamptz default now() | bumped by trigger |
 
-## Technical notes
+- Grants: SELECT/INSERT/UPDATE/DELETE to anon + authenticated; ALL to service_role (matches app's existing single-user open style — guesses table follows the same pattern).
+- RLS enabled, two policies: anyone can read, anyone can write (consistent with `guesses`).
+- Update trigger reuses existing `public.touch_updated_at()`.
 
-- `sinceTs` is computed from the in-memory `chat` array we already load (last 20 messages, ascending). Index of the last juhani message is already known as `lastJuhaniIdx`; predecessor is `chat[lastJuhaniIdx - 1]`. If `lastJuhaniIdx === 0`, use the 7-day fallback.
-- Reuse the existing `MatchWithPreds` shape; only the source query changes.
-- Keep the existing dedupe/rate-limit and per-rival staggered insert loop unchanged.
+## Server functions
+
+New file `src/lib/personas.functions.ts`:
+
+- `listPersonas()` — returns `Array<{ rival_id, persona, updated_at, isDefault }>`. Reads `rival_personas` and merges with `RIVAL_PERSONAS` so missing rows show the hardcoded default with `isDefault=true`.
+- `savePersona({ rival_id, persona })` — upsert into `rival_personas`. Trims and length-checks (max ~2000 chars). Validates rival_id against `RIVAL_ORDER`.
+- `resetPersona({ rival_id })` — delete the row so the code default takes over again.
+
+## Wire into room replies
+
+In `src/lib/room.functions.ts`, before the rival loop:
+
+- Fetch all `rival_personas` rows in one query.
+- Build `personasMap: Record<RivalId, string>` = DB row if present, else `RIVAL_PERSONAS[rivalId]`.
+- Pass `personasMap[rivalId]` into `buildPrompt` instead of `RIVAL_PERSONAS[rivalId]`.
+
+No prompt-shape change, no token impact.
+
+## UI
+
+New route `src/routes/personas.tsx`:
+
+- Title "Persona Workshop" + short blurb explaining the inputs each rival receives (style, their picks, actual results, recent chat).
+- For each of the 5 rivals (in `RIVAL_ORDER`):
+  - Avatar + name + tagline (reuse `RIVAL_NAMES` + existing avatars from results route).
+  - A `<textarea>` (10–14 rows, monospace-ish, character counter, ~2000 max) prefilled with current value.
+  - "Save", "Reset to default", and a small "default" / "customized" badge.
+  - Save button disabled until dirty; toast on success/failure.
+- All five cards rendered in a single column on mobile, two columns on `md+`.
+
+Add nav link "Personas" in `__root.tsx` alongside Room / Results.
+
+## Out of scope (deliberately not in this round)
+
+- No editing of prediction prompts in `predictors.functions.ts`.
+- No global/system prompt above personas — that was option C and you picked A.
+- No version history / undo beyond the single "reset to default" action.
+- No auth gate (public tab, matches the rest of the app).
+- No live preview of a generated message — keep the editor simple; test by going to `/room` and sending a message.
+
+## Files
+
+- new: `supabase/migrations/<ts>_create_rival_personas.sql`
+- new: `src/lib/personas.functions.ts`
+- new: `src/routes/personas.tsx`
+- edit: `src/lib/room.functions.ts` (merge persona overrides into the loop)
+- edit: `src/routes/__root.tsx` (nav link)
