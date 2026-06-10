@@ -100,6 +100,7 @@ export type Database = {
           match_id: number
           model: string | null
           pick: string
+          predictor: string
           reasoning: string | null
         }
         Insert: {
@@ -107,6 +108,7 @@ export type Database = {
           match_id: number
           model?: string | null
           pick: string
+          predictor: string
           reasoning?: string | null
         }
         Update: {
@@ -114,17 +116,31 @@ export type Database = {
           match_id?: number
           model?: string | null
           pick?: string
+          predictor?: string
           reasoning?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "predictions_match_id_fkey"
-            columns: ["match_id"]
-            isOneToOne: true
-            referencedRelation: "matches"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
+      }
+      predictors: {
+        Row: {
+          id: string
+          name: string
+          sort_order: number
+          tagline: string
+        }
+        Insert: {
+          id: string
+          name: string
+          sort_order?: number
+          tagline: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          sort_order?: number
+          tagline?: string
+        }
+        Relationships: []
       }
     }
     Views: {

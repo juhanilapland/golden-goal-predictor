@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { generateCompetitorPicks } from "@/lib/predictors.functions";
 import {
   STAGE_ORDER,
   isKnockout,
@@ -95,10 +97,12 @@ function PickButton({
 function MatchRow({
   match,
   pick,
+  rivalCount,
   onPick,
 }: {
   match: Match;
   pick: Pick | undefined;
+  rivalCount: number;
   onPick: (p: Pick) => void;
 }) {
   const locked = new Date(match.kickoff).getTime() <= Date.now() || match.status !== "SCHEDULED" && match.status !== "TIMED";
@@ -114,7 +118,9 @@ function MatchRow({
         {kickoff.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
         <span className="ml-1 text-[--gold-dim]">EEST</span>
         {match.group_name && <div className="mt-1 text-[--gold-dim]">{match.group_name}</div>}
+        <div className="mt-1 text-[--gold-dim]">{rivalCount}/5 rivals</div>
       </div>
+
 
       <div className="flex-1 flex items-center justify-center gap-2 sm:gap-6 min-w-0">
         <div className="flex items-center gap-2 flex-1 justify-end text-right min-w-0">
@@ -150,6 +156,7 @@ function MatchRow({
 function GuessPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [guesses, setGuesses] = useState<Record<number, Pick>>({});
+  const [rivalCounts, setRivalCounts] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(() => {
@@ -159,11 +166,14 @@ function GuessPage() {
     return null;
   });
 
+  const generatePicks = useServerFn(generateCompetitorPicks);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const [{ data: m }, { data: g }] = await Promise.all([
+    const [{ data: m }, { data: g }, { data: preds }] = await Promise.all([
       supabase.from("matches").select("*").order("kickoff", { ascending: true }),
       supabase.from("guesses").select("match_id, pick"),
+      supabase.from("predictions").select("match_id, predictor"),
     ]);
     setMatches((m ?? []) as Match[]);
     const map: Record<number, Pick> = {};
@@ -171,6 +181,11 @@ function GuessPage() {
       map[row.match_id] = row.pick as Pick;
     });
     setGuesses(map);
+    const counts: Record<number, number> = {};
+    (preds ?? []).forEach((r) => {
+      counts[r.match_id] = (counts[r.match_id] ?? 0) + 1;
+    });
+    setRivalCounts(counts);
     setLoading(false);
   }, []);
 
@@ -193,10 +208,23 @@ function GuessPage() {
           return next;
         });
         toast.error("Could not save pick: " + error.message);
+        return;
       }
+      // Fire-and-forget: have the 5 rivals lock in their picks for this match.
+      generatePicks({ data: { matchId } })
+        .then((res) => {
+          if (res?.generated) {
+            setRivalCounts((c) => ({ ...c, [matchId]: Math.min(5, (c[matchId] ?? 0) + res.generated) }));
+          }
+        })
+        .catch((e) => {
+          console.warn("Competitor picks failed", e);
+        });
     },
-    [guesses],
+    [guesses, generatePicks],
   );
+
+
 
   const handleSync = useCallback(async () => {
     setSyncing(true);
@@ -279,6 +307,7 @@ function GuessPage() {
                     key={m.id}
                     match={m}
                     pick={guesses[m.id]}
+                    rivalCount={rivalCounts[m.id] ?? 0}
                     onPick={(p) => handlePick(m.id, p)}
                   />
                 ))}
