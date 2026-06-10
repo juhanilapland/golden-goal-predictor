@@ -59,6 +59,7 @@ function buildPrompt(
   persona: string,
   rivalMatches: MatchWithPreds[],
   chat: ChatRow[],
+  matchesHeader: string,
 ): string {
   const myPicks = rivalMatches.map((m) => {
     const mine = m.predictions.find((p) => p.predictor === rivalId);
@@ -74,7 +75,7 @@ function buildPrompt(
 
   return `${persona}
 
-Recent finished matches and how you did:
+${matchesHeader}
 ${myPicks.join("\n") || "(no recent results yet)"}
 
 Current chat in the game room (oldest first):
@@ -104,13 +105,43 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
   const todo = RIVAL_ORDER.filter((r) => !alreadyReplied.has(r));
   if (todo.length === 0) return { replied: 0, skipped: "all rivals already replied" };
 
-  // Load latest 5 finished matches with all predictions
-  const { data: finishedMatches } = await supabaseAdmin
+  // Determine the "since" timestamp: the chat message immediately before this juhani message,
+  // or a 7-day cold-start window if juhani's message is the very first in the room.
+  let sinceTs: string;
+  let usingSinceLastChat: boolean;
+  if (lastJuhaniIdx > 0) {
+    sinceTs = chat[lastJuhaniIdx - 1].created_at;
+    usingSinceLastChat = true;
+  } else {
+    sinceTs = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    usingSinceLastChat = true;
+  }
+
+  // Load matches finished since then (chronological).
+  let { data: finishedMatches } = await supabaseAdmin
     .from("matches")
-    .select("id, stage, home_team, away_team, home_score, away_score, outcome")
+    .select("id, stage, home_team, away_team, home_score, away_score, outcome, updated_at")
     .eq("status", "FINISHED")
-    .order("kickoff", { ascending: false })
-    .limit(5);
+    .gt("updated_at", sinceTs)
+    .order("kickoff", { ascending: true })
+    .limit(20);
+
+  // Fallback: if nothing new, grab the latest 3 finished so the room still has context.
+  if (!finishedMatches || finishedMatches.length === 0) {
+    const { data: recent } = await supabaseAdmin
+      .from("matches")
+      .select("id, stage, home_team, away_team, home_score, away_score, outcome, updated_at")
+      .eq("status", "FINISHED")
+      .order("kickoff", { ascending: false })
+      .limit(3);
+    finishedMatches = (recent ?? []).slice().reverse();
+    usingSinceLastChat = false;
+  }
+
+  const matchesHeader = usingSinceLastChat
+    ? "Matches finished since the last chat (chronological):"
+    : "Recent finished matches and how you did:";
+
   const matchIds = (finishedMatches ?? []).map((m) => m.id);
   const { data: preds } = matchIds.length
     ? await supabaseAdmin
@@ -130,7 +161,7 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
   let runningChat: ChatRow[] = [...chat];
 
   for (const rivalId of todo) {
-    const prompt = buildPrompt(rivalId, RIVAL_PERSONAS[rivalId], matchesWithPreds, runningChat);
+    const prompt = buildPrompt(rivalId, RIVAL_PERSONAS[rivalId], matchesWithPreds, runningChat, matchesHeader);
     const message = await callGateway(apiKey, prompt);
     if (message) {
       const { data: inserted } = await supabaseAdmin
