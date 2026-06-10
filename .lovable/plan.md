@@ -1,51 +1,72 @@
-# Refine Match Card Design
+# Results Page Redesign
 
-Keep the established gold-on-dark luxury theme, Cinzel display type, and horizontal row layout. Tighten visual hierarchy, increase polish, and make the cards feel like collectible programme entries.
+Tell one clear story: **who is winning and by how much**. Stack the content top to bottom — podium first, then a scannable match list with every rival's pick visible inline.
 
 ## Scope
 
-Two surfaces:
-1. `MatchRow` on `/` (Guess page) — picks UI
-2. The collapsed match row on `/results` — score + expand
+Rework `src/routes/results.tsx`. Keep the data model, server functions, palette, and typography. Add a few CSS utilities to `src/styles.css` if needed.
 
-Out of scope: leaderboard table, persona workshop, expanded reasoning rows, color palette / font changes.
+Out of scope: persona workshop, guess page, new server functions, leaderboard logic changes (still points + correct count).
 
-## Visual changes
+## Section 1 — Hero leaderboard ("the podium")
 
-### Match row card (`/`)
-- Reframe each card as a "stadium ticket" still in a single horizontal row:
-  - Left **kickoff stub** with vertical divider (date stacked, time large in Cinzel gold, EEST tag, group chip, rivals-locked pill with a small lock/check icon — 0/5 dim, 5/5 glows).
-  - Center **matchup**: bigger flags (56px) with a soft gold ring + drop shadow, team names in Cinzel medium, an ornate `vs` glyph (small gold serif "·VS·" between two thin gold rules) instead of plain text.
-  - Right **pick cluster**: Home / Draw / Away buttons get a connected segmented-control look (shared border, no gap), active state uses gold gradient fill + inset shadow, locked state shows a subtle padlock glyph and removes hover.
-- Add a thin gold top accent line on cards where the user has locked a pick (visual confirmation).
-- Hover: card lifts (translate-y-[1px] → -1px), gold border brightens, soft outer glow.
-- Knockout matches get a small "KO" gilded chip in the corner.
+Replace the current 4-column table.
 
-### Results match row (`/results`)
-- Same stub treatment on the left for stage + group.
-- Replace plain `▾ / ▸` with a gold chevron icon that rotates on open.
-- Score block: bold Cinzel score (e.g. `2–1`) with a thin gold underline, "FT" tag underneath when finished; for upcoming, show a muted dash.
-- Subtle alternating row background (even rows `bg-card`, odd rows `bg-card/60`) so the long list scans easier.
-- Open state: top border becomes solid gold for the open row.
+- **Top row**: three podium tiles for ranks 1–3, sized 2 / 3 / 1 visually (gold center, silver left, bronze right) on `md+`. Stack vertically on mobile in 1-2-3 order. Each tile shows:
+  - Big avatar (80px) with rank medal overlay
+  - Rival name (Cinzel) + tagline
+  - Points (huge gold Cinzel) and "X / Y correct" underneath
+  - Gap row: "+N pts ahead" for #1, "−N from #1" for #2/#3
+  - Highlight Juhani's tile with a subtle "YOU" chip when in top 3
+- **Below podium**: compact ranked rows for the remaining rivals (4th–6th). Same row anatomy as today but slimmer: rank, avatar, name, accuracy %, points, gap-from-leader.
+- **Header strip**: `N played · M to play · Σ points awarded` summary line in muted small caps.
 
-### Shared polish
-- Add a reusable `card-elevated` utility in `src/styles.css` for the lift/glow.
-- Add a `segmented` utility for the connected pick buttons (shared border + dividers).
-- Add a `chip-gold` utility for the small KO / group / rivals badges.
+## Section 2 — Stage filter
+
+Keep current pill row. Move it above the match list. No visual change.
+
+## Section 3 — Match list with always-visible pick grid
+
+Replace the click-to-expand row with a denser card per match. Each card is one horizontal row at `md+`, two-line stack on mobile.
+
+Per match row:
+- **Left**: kickoff time stub (same treatment as the index page card) + stage chip + group chip
+- **Center**: `Home — score — Away` matchup. Score in gold Cinzel when finished, em-dash when upcoming, status tag otherwise. Tiny FT / LIVE chip.
+- **Right**: a 6-cell pick grid (one cell per rival, fixed order matching the leaderboard). Each cell:
+  - Avatar (24px) on top
+  - Pick pill below (`H` / `D` / `A`)
+  - Green ring + check overlay if correct, red ring + strike if wrong, dim if no pick, neutral if upcoming
+  - Title attribute = `"{Rival name}: {pick} — {reasoning or actual}"` for hover/tap detail
+- **Far right**: points awarded this match for the leader (small gold number) — optional, only when finished.
+
+On mobile (<640): the pick grid wraps under the matchup as a 6-column row, avatars shrink to 20px, names hidden, pick letters readable.
+
+No expand/collapse needed — everything fits inline. Tapping an avatar opens a small inline tooltip/popover with the reasoning text (use a simple controlled state, one open at a time).
+
+## Section 4 — Empty / loading states
+
+- Loading: keep "Loading…"
+- No finished matches yet: show a friendly hero card ("Tournament hasn't kicked off — picks lock as matches play") with disabled-looking podium silhouettes instead of zeros everywhere.
+
+## Visual treatment
+
+- Reuse existing tokens: `--gold`, `--gold-dim`, `--gold-deep`, `--card`, `--muted`.
+- New utilities (`src/styles.css`):
+  - `medal-gold`, `medal-silver`, `medal-bronze` — small circular rank badge with metallic gradient
+  - `pick-cell-correct`, `pick-cell-wrong`, `pick-cell-pending` — applied to the pick grid cells
+- Podium gold tile gets the existing `locked-accent` top stripe + a stronger outer glow.
+- Keep "Generate missing picks" button in header but de-emphasize it (ghost variant) — it's an admin action, not the story.
 
 ## Mobile (360px)
-- Date stub collapses to a single line above the matchup; pick segmented control stretches full-width below.
-- Flags stay 44px on mobile to keep team names readable; use `min-w-0` + `truncate` on team labels.
-- Results row: chevron stays right-aligned, score stays compact (~56px column).
 
-## Technical notes
-- Edits in `src/routes/index.tsx` (`Flag`, `PickButton`, `MatchRow`) and `src/routes/results.tsx` (collapsed row only).
-- New utilities + tiny keyframe for the locked-pick accent line in `src/styles.css`.
-- Use existing `--gold`, `--gold-dim`, `--gold-deep` tokens — no new colors.
-- Icons: small inline SVGs (lock, check, chevron) — no new dependency.
+- Podium tiles stack full width, rank #1 first.
+- Summary strip wraps to two lines if needed.
+- Match card stacks: stub line → matchup line → 6-cell pick row (`grid-cols-6`).
+- No horizontal scroll.
 
 ## Acceptance
-- Cards have clear three-zone rhythm (stub · matchup · picks) at ≥640px.
-- Locked picks visually distinct from open ones at a glance.
-- No layout regression at 360px (no horizontal scroll, no clipped team names).
-- All existing functionality preserved (pick saving, rival generation, expand/collapse, score display).
+
+- A first-time visitor instantly knows who is in 1st and by how many points.
+- For any played match, you can see all 6 picks and who got it right without clicking.
+- Page works at 360px with no overflow.
+- All existing data wiring preserved (no schema or server-function changes).
