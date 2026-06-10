@@ -75,6 +75,7 @@ function buildPrompt(
   rivalMatches: MatchWithPreds[],
   chat: ChatRow[],
   matchesHeader: string,
+  standings: Standing[],
 ): string {
   const myPicks = rivalMatches.map((m) => {
     const mine = m.predictions.find((p) => p.predictor === rivalId);
@@ -88,7 +89,29 @@ function buildPrompt(
     .map((c) => `${authorDisplay(c.author)}: ${c.body}`)
     .join("\n");
 
+  const board = standings
+    .map(
+      (s) =>
+        `${s.rank}. ${RIVAL_NAMES[s.rivalId]}${s.rivalId === rivalId ? " (you)" : ""} — ${s.points} pts, ${s.correct}/${s.total} correct, last 5: ${s.streak || "—"}`,
+    )
+    .join("\n");
+
+  const me = standings.find((s) => s.rivalId === rivalId);
+  const loyalty = RIVAL_LOYALTIES[rivalId];
+  const loyaltyLine = `You love: ${loyalty.loves.join(", ")}. You can't stand: ${loyalty.hates.join(", ")}. (${loyalty.note}) — let this bias show when those teams come up, but never break character to explain it.`;
+
+  const standingLine = me
+    ? `You are currently RANK ${me.rank}/${standings.length} with ${me.points} pts. Your last 5 picks: ${me.streak || "—"}. React in character to this position (gloat if 1st, deflect if last, panic on a losing streak, smug on a winning one).`
+    : "";
+
   return `${persona}
+
+${loyaltyLine}
+
+Current leaderboard (most points first):
+${board || "(no scoring yet)"}
+
+${standingLine}
 
 ${matchesHeader}
 ${myPicks.join("\n") || "(no recent results yet)"}
