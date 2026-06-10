@@ -152,6 +152,12 @@ function GuessPage() {
   const [guesses, setGuesses] = useState<Record<number, Pick>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [lastSynced, setLastSynced] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("wc26_last_synced") ?? null;
+    }
+    return null;
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
