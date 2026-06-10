@@ -47,10 +47,14 @@ export const Route = createFileRoute("/")({
   component: GuessPage,
 });
 
-function Flag({ url, name }: { url: string | null; name: string }) {
+function Flag({ url, name, size = 56 }: { url: string | null; name: string; size?: number }) {
+  const style = { width: size, height: size };
   if (!url) {
     return (
-      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground">
+      <div
+        style={style}
+        className="rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground ring-1 ring-[--gold-deep] shrink-0"
+      >
         ?
       </div>
     );
@@ -59,38 +63,71 @@ function Flag({ url, name }: { url: string | null; name: string }) {
     <img
       src={url}
       alt={name}
-      className="w-12 h-12 rounded-full object-contain bg-background/40 p-1 ring-1 ring-[--gold-deep]"
+      style={style}
+      className="rounded-full object-contain bg-background/40 p-1 ring-1 ring-[--gold-deep] shadow-[0_4px_12px_-4px_oklch(0_0_0/40%)] shrink-0"
       loading="lazy"
     />
   );
 }
 
-function PickButton({
-  active,
-  disabled,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+function LockIcon({ className = "" }: { className?: string }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={[
-        "px-3 py-2 text-xs font-display tracking-wider uppercase rounded-md transition-all",
-        "border",
-        active
-          ? "bg-[--gold] text-[--primary-foreground] border-[--gold] shadow-[0_0_18px_oklch(0.82_0.16_85/35%)]"
-          : "border-[--gold-deep] text-[--gold-dim] hover:border-[--gold] hover:text-[--gold]",
-        disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
-      ].join(" ")}
-    >
-      {children}
-    </button>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} aria-hidden>
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 1 1 8 0v3" />
+    </svg>
+  );
+}
+
+function CheckIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={className} aria-hidden>
+      <path d="M5 12l5 5L20 7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SegmentedPicks({
+  pick,
+  locked,
+  knockout,
+  onPick,
+}: {
+  pick: Pick | undefined;
+  locked: boolean;
+  knockout: boolean;
+  onPick: (p: Pick) => void;
+}) {
+  const opts: { id: Pick; label: string; disabled: boolean }[] = [
+    { id: "home", label: "Home", disabled: locked },
+    { id: "draw", label: "Draw", disabled: locked || knockout },
+    { id: "away", label: "Away", disabled: locked },
+  ];
+  return (
+    <div className="inline-flex w-full sm:w-auto rounded-md border border-[--gold-deep] overflow-hidden divide-x divide-[--gold-deep] bg-background/40">
+      {opts.map((o) => {
+        const active = pick === o.id;
+        return (
+          <button
+            key={o.id}
+            onClick={() => onPick(o.id)}
+            disabled={o.disabled}
+            className={[
+              "flex-1 sm:flex-initial sm:min-w-[72px] px-3 py-2 text-xs font-display tracking-wider uppercase transition-all inline-flex items-center justify-center gap-1.5",
+              active
+                ? "bg-gradient-to-b from-[oklch(0.88_0.16_85)] to-[oklch(0.74_0.16_85)] text-[--primary-foreground] shadow-[inset_0_1px_0_oklch(1_0_0/30%),inset_0_-1px_0_oklch(0_0_0/15%)]"
+                : "text-[--gold-dim] hover:text-[--gold] hover:bg-[--gold]/5",
+              o.disabled && !active ? "opacity-40 cursor-not-allowed hover:bg-transparent hover:text-[--gold-dim]" : "",
+              o.disabled ? "cursor-not-allowed" : "cursor-pointer",
+            ].join(" ")}
+          >
+            {locked && active && <CheckIcon className="w-3 h-3" />}
+            {locked && !active && o.disabled && <LockIcon className="w-3 h-3 opacity-50" />}
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -105,49 +142,56 @@ function MatchRow({
   rivalCount: number;
   onPick: (p: Pick) => void;
 }) {
-  const locked = new Date(match.kickoff).getTime() <= Date.now() || match.status !== "SCHEDULED" && match.status !== "TIMED";
+  const locked = new Date(match.kickoff).getTime() <= Date.now() || (match.status !== "SCHEDULED" && match.status !== "TIMED");
   const knockout = isKnockout(match.stage);
   // football-data.org returns UTC; display in Helsinki (EEST, UTC+3)
   const kickoff = new Date(new Date(match.kickoff).getTime() + 3 * 60 * 60 * 1000);
+  const hasPick = !!pick;
+  const rivalsFull = rivalCount >= 5;
 
   return (
-    <div className="gold-border bg-card rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
-      <div className="text-[10px] uppercase tracking-widest text-muted-foreground sm:w-28">
-        {kickoff.toLocaleDateString("en-GB", { month: "short", day: "numeric" })}
-        <br />
-        {kickoff.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-        <span className="ml-1 text-[--gold-dim]">EEST</span>
-        {match.group_name && <div className="mt-1 text-[--gold-dim]">{match.group_name}</div>}
-        <div className="mt-1 text-[--gold-dim]">{rivalCount}/5 rivals</div>
+    <div
+      className={[
+        "relative gold-border card-elevated bg-card rounded-lg p-4",
+        "flex flex-col sm:flex-row sm:items-center gap-4",
+        hasPick ? "locked-accent" : "",
+      ].join(" ")}
+    >
+      {/* Stub: date + meta */}
+      <div className="sm:w-32 sm:pr-4 sm:border-r sm:border-[--gold-deep]/40 flex sm:flex-col items-center sm:items-start gap-2 sm:gap-1.5">
+        <div className="font-display text-xl sm:text-2xl text-[--gold] leading-none">
+          {kickoff.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+        </div>
+        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+          {kickoff.toLocaleDateString("en-GB", { month: "short", day: "numeric" })}
+          <span className="ml-1 text-[--gold-dim]">EEST</span>
+        </div>
+        <div className="flex flex-wrap gap-1 sm:mt-1">
+          {match.group_name && <span className="chip-gold">{match.group_name}</span>}
+          {knockout && <span className="chip-gold chip-gold-active">KO</span>}
+          <span className={`chip-gold ${rivalsFull ? "chip-gold-active" : ""}`}>
+            {rivalsFull ? <CheckIcon className="w-2.5 h-2.5" /> : <LockIcon className="w-2.5 h-2.5" />}
+            {rivalCount}/5
+          </span>
+        </div>
       </div>
 
-
-      <div className="flex-1 flex items-center justify-center gap-2 sm:gap-6 min-w-0">
-        <div className="flex items-center gap-2 flex-1 justify-end text-right min-w-0">
-          <span className="font-display text-xs sm:text-sm truncate">{match.home_team}</span>
-          <Flag url={match.home_code} name={match.home_team} />
+      {/* Matchup */}
+      <div className="flex-1 flex items-center justify-center gap-3 sm:gap-5 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end text-right min-w-0">
+          <span className="font-display text-sm sm:text-base truncate">{match.home_team}</span>
+          <Flag url={match.home_code} name={match.home_team} size={48} />
         </div>
-        <span className="text-[--gold-dim] font-display text-[10px] shrink-0">vs</span>
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <Flag url={match.away_code} name={match.away_team} />
-          <span className="font-display text-xs sm:text-sm truncate">{match.away_team}</span>
+        <div className="vs-rule shrink-0">VS</div>
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+          <Flag url={match.away_code} name={match.away_team} size={48} />
+          <span className="font-display text-sm sm:text-base truncate">{match.away_team}</span>
         </div>
       </div>
 
-      <div className="flex gap-2 sm:w-64 justify-end">
-        <PickButton active={pick === "home"} disabled={locked} onClick={() => onPick("home")}>
-          Home
-        </PickButton>
-        <PickButton
-          active={pick === "draw"}
-          disabled={locked || knockout}
-          onClick={() => onPick("draw")}
-        >
-          Draw
-        </PickButton>
-        <PickButton active={pick === "away"} disabled={locked} onClick={() => onPick("away")}>
-          Away
-        </PickButton>
+      {/* Picks */}
+      <div className="sm:w-auto">
+        <SegmentedPicks pick={pick} locked={locked} knockout={knockout} onPick={onPick} />
       </div>
     </div>
   );
