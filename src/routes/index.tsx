@@ -220,6 +220,13 @@ function GuessPage() {
     }
   }, [load]);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      handleSync();
+    }, 10 * 60 * 1000); // auto-refresh every 10 minutes
+    return () => clearInterval(interval);
+  }, [handleSync]);
+
   const grouped = useMemo(() => {
     const byStage: Record<string, Match[]> = {};
     for (const m of matches) {
