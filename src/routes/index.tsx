@@ -307,6 +307,7 @@ function GuessPage() {
                     key={m.id}
                     match={m}
                     pick={guesses[m.id]}
+                    rivalCount={rivalCounts[m.id] ?? 0}
                     onPick={(p) => handlePick(m.id, p)}
                   />
                 ))}
