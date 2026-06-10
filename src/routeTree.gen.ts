@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RoomRouteImport } from './routes/room'
 import { Route as ResultsRouteImport } from './routes/results'
+import { Route as PersonasRouteImport } from './routes/personas'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicSyncFixturesRouteImport } from './routes/api/public/sync-fixtures'
 
@@ -22,6 +23,11 @@ const RoomRoute = RoomRouteImport.update({
 const ResultsRoute = ResultsRouteImport.update({
   id: '/results',
   path: '/results',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PersonasRoute = PersonasRouteImport.update({
+  id: '/personas',
+  path: '/personas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -37,12 +43,14 @@ const ApiPublicSyncFixturesRoute = ApiPublicSyncFixturesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/personas': typeof PersonasRoute
   '/results': typeof ResultsRoute
   '/room': typeof RoomRoute
   '/api/public/sync-fixtures': typeof ApiPublicSyncFixturesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/personas': typeof PersonasRoute
   '/results': typeof ResultsRoute
   '/room': typeof RoomRoute
   '/api/public/sync-fixtures': typeof ApiPublicSyncFixturesRoute
@@ -50,20 +58,33 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/personas': typeof PersonasRoute
   '/results': typeof ResultsRoute
   '/room': typeof RoomRoute
   '/api/public/sync-fixtures': typeof ApiPublicSyncFixturesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/results' | '/room' | '/api/public/sync-fixtures'
+  fullPaths:
+    | '/'
+    | '/personas'
+    | '/results'
+    | '/room'
+    | '/api/public/sync-fixtures'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/results' | '/room' | '/api/public/sync-fixtures'
-  id: '__root__' | '/' | '/results' | '/room' | '/api/public/sync-fixtures'
+  to: '/' | '/personas' | '/results' | '/room' | '/api/public/sync-fixtures'
+  id:
+    | '__root__'
+    | '/'
+    | '/personas'
+    | '/results'
+    | '/room'
+    | '/api/public/sync-fixtures'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  PersonasRoute: typeof PersonasRoute
   ResultsRoute: typeof ResultsRoute
   RoomRoute: typeof RoomRoute
   ApiPublicSyncFixturesRoute: typeof ApiPublicSyncFixturesRoute
@@ -85,6 +106,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResultsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/personas': {
+      id: '/personas'
+      path: '/personas'
+      fullPath: '/personas'
+      preLoaderRoute: typeof PersonasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -104,6 +132,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PersonasRoute: PersonasRoute,
   ResultsRoute: ResultsRoute,
   RoomRoute: RoomRoute,
   ApiPublicSyncFixturesRoute: ApiPublicSyncFixturesRoute,

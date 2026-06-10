@@ -163,6 +163,24 @@ export type Database = {
         }
         Relationships: []
       }
+      rival_personas: {
+        Row: {
+          persona: string
+          rival_id: string
+          updated_at: string
+        }
+        Insert: {
+          persona: string
+          rival_id: string
+          updated_at?: string
+        }
+        Update: {
+          persona?: string
+          rival_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

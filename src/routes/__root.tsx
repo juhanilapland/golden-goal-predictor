@@ -129,6 +129,13 @@ function NavBar() {
           >
             Results
           </Link>
+          <Link
+            to="/personas"
+            className="px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-muted-foreground hover:text-[--gold]"
+            activeProps={{ className: "px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-[--gold]" }}
+          >
+            Personas
+          </Link>
         </div>
       </div>
     </nav>
