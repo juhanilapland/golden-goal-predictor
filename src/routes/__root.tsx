@@ -116,6 +116,13 @@ function NavBar() {
             Guess
           </Link>
           <Link
+            to="/room"
+            className="px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-muted-foreground hover:text-[--gold]"
+            activeProps={{ className: "px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-[--gold]" }}
+          >
+            Room
+          </Link>
+          <Link
             to="/results"
             className="px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-muted-foreground hover:text-[--gold]"
             activeProps={{ className: "px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-[--gold]" }}
