@@ -312,10 +312,18 @@ function ResultsPage() {
                       return (
                         <div
                           key={pr.id}
-                          className="flex items-start gap-3 text-xs py-1 border-t border-[--gold-deep]/15 first:border-t-0"
+                          className="flex items-center gap-3 text-xs py-2 border-t border-[--gold-deep]/15 first:border-t-0"
                         >
-                          <div className="w-32 sm:w-40 shrink-0">
-                            <div className="font-display">{pr.name}</div>
+                          <img
+                            src={AVATARS[pr.id]}
+                            alt={pr.name}
+                            width={28}
+                            height={28}
+                            loading="lazy"
+                            className="w-7 h-7 rounded-full object-cover ring-1 ring-[--gold-deep] shrink-0"
+                          />
+                          <div className="w-24 sm:w-32 shrink-0">
+                            <div className="font-display truncate">{pr.name}</div>
                           </div>
                           <div className="w-16 shrink-0">
                             <PickPill pick={pick} correct={correct} />
