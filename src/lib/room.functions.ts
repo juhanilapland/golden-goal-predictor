@@ -1,6 +1,21 @@
 import { createServerFn } from "@tanstack/react-start";
-import { RIVAL_ORDER, RIVAL_NAMES, RIVAL_PERSONAS, type RivalId } from "@/lib/predictors/personas";
+import {
+  RIVAL_ORDER,
+  RIVAL_NAMES,
+  RIVAL_PERSONAS,
+  RIVAL_LOYALTIES,
+  type RivalId,
+} from "@/lib/predictors/personas";
 import { outcomeFromScore, stageWeight, type Pick } from "@/lib/wc-config";
+
+type Standing = {
+  rivalId: RivalId;
+  points: number;
+  correct: number;
+  total: number;
+  rank: number;
+  streak: string; // e.g. "WWLW-" (most recent last)
+};
 
 type ChatRow = { author: string; body: string; created_at: string };
 
@@ -60,6 +75,7 @@ function buildPrompt(
   rivalMatches: MatchWithPreds[],
   chat: ChatRow[],
   matchesHeader: string,
+  standings: Standing[],
 ): string {
   const myPicks = rivalMatches.map((m) => {
     const mine = m.predictions.find((p) => p.predictor === rivalId);
@@ -73,7 +89,29 @@ function buildPrompt(
     .map((c) => `${authorDisplay(c.author)}: ${c.body}`)
     .join("\n");
 
+  const board = standings
+    .map(
+      (s) =>
+        `${s.rank}. ${RIVAL_NAMES[s.rivalId]}${s.rivalId === rivalId ? " (you)" : ""} — ${s.points} pts, ${s.correct}/${s.total} correct, last 5: ${s.streak || "—"}`,
+    )
+    .join("\n");
+
+  const me = standings.find((s) => s.rivalId === rivalId);
+  const loyalty = RIVAL_LOYALTIES[rivalId];
+  const loyaltyLine = `You love: ${loyalty.loves.join(", ")}. You can't stand: ${loyalty.hates.join(", ")}. (${loyalty.note}) — let this bias show when those teams come up, but never break character to explain it.`;
+
+  const standingLine = me
+    ? `You are currently RANK ${me.rank}/${standings.length} with ${me.points} pts. Your last 5 picks: ${me.streak || "—"}. React in character to this position (gloat if 1st, deflect if last, panic on a losing streak, smug on a winning one).`
+    : "";
+
   return `${persona}
+
+${loyaltyLine}
+
+Current leaderboard (most points first):
+${board || "(no scoring yet)"}
+
+${standingLine}
 
 ${matchesHeader}
 ${myPicks.join("\n") || "(no recent results yet)"}
@@ -165,12 +203,63 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
     (personaRows ?? []).map((r) => [r.rival_id, r.persona]),
   );
 
+  // Compute standings across ALL finished matches (cumulative leaderboard + streak).
+  const { data: allFinished } = await supabaseAdmin
+    .from("matches")
+    .select("id, stage, home_score, away_score, outcome, kickoff")
+    .eq("status", "FINISHED")
+    .order("kickoff", { ascending: true });
+  const allMatchIds = (allFinished ?? []).map((m) => m.id);
+  const { data: allPreds } = allMatchIds.length
+    ? await supabaseAdmin
+        .from("predictions")
+        .select("match_id, predictor, pick")
+        .in("match_id", allMatchIds)
+    : { data: [] as { match_id: number; predictor: string; pick: string }[] };
+
+  const predsByMatch = new Map<number, { predictor: string; pick: string }[]>();
+  for (const p of allPreds ?? []) {
+    const arr = predsByMatch.get(p.match_id) ?? [];
+    arr.push({ predictor: p.predictor, pick: p.pick });
+    predsByMatch.set(p.match_id, arr);
+  }
+
+  const acc: Record<string, { points: number; correct: number; total: number; history: string[] }> = {};
+  for (const r of RIVAL_ORDER) acc[r] = { points: 0, correct: 0, total: 0, history: [] };
+  for (const m of allFinished ?? []) {
+    const actual = m.outcome ?? outcomeFromScore(m.home_score, m.away_score);
+    if (!actual) continue;
+    const rowPreds = predsByMatch.get(m.id) ?? [];
+    for (const p of rowPreds) {
+      const a = acc[p.predictor];
+      if (!a) continue;
+      a.total++;
+      if (p.pick === actual) {
+        a.correct++;
+        a.points += stageWeight(m.stage);
+        a.history.push("W");
+      } else {
+        a.history.push("L");
+      }
+    }
+  }
+  const standings: Standing[] = RIVAL_ORDER.map((r) => ({
+    rivalId: r,
+    points: acc[r].points,
+    correct: acc[r].correct,
+    total: acc[r].total,
+    rank: 0,
+    streak: acc[r].history.slice(-5).join(""),
+  }))
+    .sort((a, b) => b.points - a.points || b.correct - a.correct)
+    .map((s, i) => ({ ...s, rank: i + 1 }));
+
   let replied = 0;
   let runningChat: ChatRow[] = [...chat];
 
   for (const rivalId of todo) {
     const persona = personaOverrides.get(rivalId) ?? RIVAL_PERSONAS[rivalId];
-    const prompt = buildPrompt(rivalId, persona, matchesWithPreds, runningChat, matchesHeader);
+    const prompt = buildPrompt(rivalId, persona, matchesWithPreds, runningChat, matchesHeader, standings);
     const message = await callGateway(apiKey, prompt);
     if (message) {
       const { data: inserted } = await supabaseAdmin
