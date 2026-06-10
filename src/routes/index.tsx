@@ -104,15 +104,15 @@ function MatchRow({
         {match.group_name && <div className="mt-1 text-[--gold-dim]">{match.group_name}</div>}
       </div>
 
-      <div className="flex-1 flex items-center justify-center gap-3 sm:gap-6">
-        <div className="flex items-center gap-2 flex-1 justify-end text-right">
-          <span className="font-display text-sm sm:text-base">{match.home_team}</span>
+      <div className="flex-1 flex items-center justify-center gap-2 sm:gap-6 min-w-0">
+        <div className="flex items-center gap-2 flex-1 justify-end text-right min-w-0">
+          <span className="font-display text-xs sm:text-sm truncate">{match.home_team}</span>
           <Flag url={match.home_code} name={match.home_team} />
         </div>
-        <span className="text-[--gold-dim] font-display text-xs">vs</span>
-        <div className="flex items-center gap-2 flex-1">
+        <span className="text-[--gold-dim] font-display text-[10px] shrink-0">vs</span>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
           <Flag url={match.away_code} name={match.away_team} />
-          <span className="font-display text-sm sm:text-base">{match.away_team}</span>
+          <span className="font-display text-xs sm:text-sm truncate">{match.away_team}</span>
         </div>
       </div>
 
