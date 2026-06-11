@@ -438,7 +438,7 @@ function MatchCard({
 }) {
   const finished = actual !== null;
   const upcoming = m.status === "SCHEDULED" || m.status === "TIMED";
-  const kickoff = new Date(new Date(m.kickoff).getTime() + 3 * 60 * 60 * 1000);
+  const kickoff = new Date(m.kickoff);
 
   return (
     <div className="gold-border card-elevated bg-card rounded-lg p-3 sm:p-4 grid grid-cols-1 md:grid-cols-[140px_minmax(0,1fr)_auto] gap-3 md:gap-5 md:items-center">

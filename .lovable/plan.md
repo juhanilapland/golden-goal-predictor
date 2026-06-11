@@ -1,33 +1,29 @@
-# Freddy persona + streak-aware context
+## Problem
 
-## 1. `src/lib/predictors/personas.ts`
-Replace the placeholder `RIVAL_PERSONAS.fanatic` with:
+Game 1 should display **22:00** and game 2 **05:00** in your local timezone, but the UI shows **04:00** / **11:00** because the kickoff is being timezone-shifted twice:
 
-> You are Freddy Fanatic, an ADHD football superfan riding every result like it's personal. Worldview: form is everything — winners are gods, losers are frauds, and last week is ancient history. Obsession: hype any team on a winning streak ("they're UNREAL right now", "unstoppable"), trash any team that just lost ("their defense is COOKED", "that squad sucks, move on"). Bicker with: everyone when you're hot — especially Sara (numbers are boring) and Valerie (auras don't score goals). When right: euphoric, ALL CAPS bursts, "I TOLD YOU", brag for one sentence then immediately hype the next match. When wrong: visibly crushed, lowercase, "i can't believe this", "i'm done", but bounce back the moment a winner shows up. Max 2 short sentences. Mood swings hard between messages. Never break character.
+1. The DB migration I ran earlier added **+3 hours** to every `matches.kickoff` row (19:00 UTC → 22:00 UTC).
+2. The UI in `src/routes/index.tsx:148` and `src/routes/results.tsx:441` also adds a hardcoded **+3 hours** before formatting:
+   ```ts
+   const kickoff = new Date(new Date(match.kickoff).getTime() + 3 * 60 * 60 * 1000);
+   ```
+3. `toLocaleTimeString("en-GB", …)` then applies the **browser's local timezone** on top of that.
 
-Replace `RIVAL_LOYALTIES.fanatic` with:
+Net effect: the offset is applied two or three times depending on viewer TZ. The real fixture kickoff for Mexico–South Africa is 19:00 UTC, which is naturally 22:00 in UTC+3.
 
-```ts
-fanatic: {
-  loves: ["whoever's on a hot streak this week"],
-  hates: ["whoever just lost — especially badly"],
-  note: "no fixed allegiance; rides current form like a stock chart, flips on a team the moment they drop a result",
-},
+## Fix
+
+**1. Revert the DB shift** (back to the real UTC kickoffs from the football-data feed):
+```sql
+UPDATE public.matches SET kickoff = kickoff - interval '3 hours';
 ```
 
-## 2. `src/lib/room.functions.ts` — streak-aware context for Freddy only
-Already loads `allFinished` for the leaderboard. Add a `computeTeamForm(allFinished)` step that returns per-team `{ results: string[] /* W/D/L oldest→newest */, gf: number, ga: number }`.
+**2. Remove the hardcoded `+3h` in both UI files** so we trust the browser's timezone conversion:
+- `src/routes/index.tsx:148` → `const kickoff = new Date(match.kickoff);`
+- `src/routes/results.tsx:441` → `const kickoff = new Date(m.kickoff);`
 
-In `buildPrompt`, when `rivalId === "fanatic"`, append a `FORM CONTEXT` block listing every team that appears in `rivalMatches` (the recent finished matches he's reacting to), formatted like:
+The existing `toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })` will then display in the viewer's local timezone correctly: 22:00 / 05:00 for UTC+3 viewers, the right local times for everyone else.
 
-```
-FORM CONTEXT (last 5, oldest → newest):
-- Mexico: WWDLW · 3W-1D-1L · streak: W2
-- Brazil: LL · 0W-0D-2L · streak: L2
-- Spain: WWWWW · 5W-0D-0L · streak: W5 🔥
-```
+## Why this is the right shape
 
-Hot/cold flags: `🔥` when streak ≥ 3 wins, `🥶` when streak ≥ 2 losses. Helper is pure JS, no extra DB round-trips (data already in memory). Other rivals' prompts unchanged.
-
-## Out of scope
-No UI / DB / route changes.
+Storing real UTC and converting on display is the standard approach: viewers in any timezone see correct local times automatically, and the sync job that writes `m.utcDate` from football-data stays consistent (no drift if it re-runs).
