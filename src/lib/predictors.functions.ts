@@ -149,11 +149,7 @@ Respond with a JSON object only: { "pick": ${allowed}, "reasoning": "one short s
 
 const PREDICTORS = ["random", "stats", "magician", "adriana", "vibes", "fanatic"] as const;
 
-type SupabaseAdmin = Awaited<ReturnType<typeof getAdmin>>;
-async function getAdmin() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
-}
+type SupabaseAdmin = typeof import("@/integrations/supabase/client.server")["supabaseAdmin"];
 
 async function pickFanatic(m: MatchRow, supabaseAdmin: SupabaseAdmin): Promise<PredictionInsert> {
   const { data: prior } = await supabaseAdmin
