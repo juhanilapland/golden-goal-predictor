@@ -114,7 +114,7 @@ After pushing, open the app and check Quincy's predictions.
 You can also query the database directly:
 
 ```sql
-SELECT match_id, pick, reasoning, created_at
+SELECT match_id, pick, prob_home, prob_draw, prob_away, reasoning, created_at
 FROM predictions
 WHERE predictor = 'quant'
 ORDER BY created_at DESC;
