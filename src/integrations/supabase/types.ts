@@ -122,6 +122,9 @@ export type Database = {
           model: string | null
           pick: string
           predictor: string
+          prob_away: number | null
+          prob_draw: number | null
+          prob_home: number | null
           reasoning: string | null
         }
         Insert: {
@@ -130,6 +133,9 @@ export type Database = {
           model?: string | null
           pick: string
           predictor: string
+          prob_away?: number | null
+          prob_draw?: number | null
+          prob_home?: number | null
           reasoning?: string | null
         }
         Update: {
@@ -138,6 +144,9 @@ export type Database = {
           model?: string | null
           pick?: string
           predictor?: string
+          prob_away?: number | null
+          prob_draw?: number | null
+          prob_home?: number | null
           reasoning?: string | null
         }
         Relationships: []
