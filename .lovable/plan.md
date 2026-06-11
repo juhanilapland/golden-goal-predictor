@@ -1,29 +1,28 @@
 ## Problem
 
-Game 1 should display **22:00** and game 2 **05:00** in your local timezone, but the UI shows **04:00** / **11:00** because the kickoff is being timezone-shifted twice:
+`generateAllMissingPicks` currently walks every match in the database and fills any missing `(match, predictor)` pair. So pressing **Generate picks** also created rival picks for future matches you haven't guessed yet — picks that should only be generated the moment you make your own pick (which is already wired up in `handlePick` → `generateCompetitorPicks`).
 
-1. The DB migration I ran earlier added **+3 hours** to every `matches.kickoff` row (19:00 UTC → 22:00 UTC).
-2. The UI in `src/routes/index.tsx:148` and `src/routes/results.tsx:441` also adds a hardcoded **+3 hours** before formatting:
-   ```ts
-   const kickoff = new Date(new Date(match.kickoff).getTime() + 3 * 60 * 60 * 1000);
-   ```
-3. `toLocaleTimeString("en-GB", …)` then applies the **browser's local timezone** on top of that.
-
-Net effect: the offset is applied two or three times depending on viewer TZ. The real fixture kickoff for Mexico–South Africa is 19:00 UTC, which is naturally 22:00 in UTC+3.
+You also noted "including me" — your own picks live in the `guesses` table, not `predictions`, so they weren't actually touched. What you saw was rivals predicting your future matches.
 
 ## Fix
 
-**1. Revert the DB shift** (back to the real UTC kickoffs from the football-data feed):
-```sql
-UPDATE public.matches SET kickoff = kickoff - interval '3 hours';
-```
+Change `generateAllMissingPicks` in `src/lib/predictors.functions.ts` so it only considers matches that **already have at least one prediction**. That set is exactly "matches you've picked at some point" (because the only thing that creates predictions today is your pick triggering `generateCompetitorPicks`).
 
-**2. Remove the hardcoded `+3h` in both UI files** so we trust the browser's timezone conversion:
-- `src/routes/index.tsx:148` → `const kickoff = new Date(match.kickoff);`
-- `src/routes/results.tsx:441` → `const kickoff = new Date(m.kickoff);`
+Concrete change:
 
-The existing `toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })` will then display in the viewer's local timezone correctly: 22:00 / 05:00 for UTC+3 viewers, the right local times for everyone else.
+1. Query `predictions` first to get the distinct `match_id`s that already have any rival pick.
+2. Fetch only those matches from `matches`.
+3. Run the existing backfill loop on that subset.
 
-## Why this is the right shape
+Effects:
 
-Storing real UTC and converting on display is the standard approach: viewers in any timezone see correct local times automatically, and the sync job that writes `m.utcDate` from football-data stays consistent (no drift if it re-runs).
+- A new guesser (e.g. Freddy) gets filled in for every match where the other rivals already exist — same as today.
+- Matches you haven't picked yet stay untouched. When you eventually pick them, `generateCompetitorPicks` runs for all 6 rivals as usual.
+- The existing `onConflict("match_id,predictor")` upsert still prevents overwriting any existing pick.
+
+No UI changes, no schema changes, no change to `generateCompetitorPicks`.
+
+## Technical notes
+
+- One added `supabaseAdmin.from("predictions").select("match_id")` call, then `Array.from(new Set(...))` to get unique ids, then `.in("id", ids)` on the matches query.
+- If the distinct set is empty, return `{ generated: 0 }` early.
