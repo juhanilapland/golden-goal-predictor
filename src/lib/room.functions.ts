@@ -257,7 +257,7 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
   // Compute standings across ALL finished matches (cumulative leaderboard + streak).
   const { data: allFinished } = await supabaseAdmin
     .from("matches")
-    .select("id, stage, home_score, away_score, outcome, kickoff")
+    .select("id, stage, home_team, away_team, home_score, away_score, outcome, kickoff")
     .eq("status", "FINISHED")
     .order("kickoff", { ascending: true });
   const allMatchIds = (allFinished ?? []).map((m) => m.id);
