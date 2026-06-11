@@ -328,7 +328,7 @@ function GuessPage() {
             {syncing ? "Syncing…" : "Refresh fixtures"}
           </button>
           <span className="text-[10px] text-muted-foreground">
-            Last updated: {formatTimeAgo(lastSynced)}
+            Last updated: {mounted ? formatTimeAgo(lastSynced) : "Never"}
           </span>
         </div>
       </header>
