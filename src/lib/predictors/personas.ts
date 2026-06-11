@@ -8,6 +8,7 @@ export const RIVAL_NAMES: Record<RivalId, string> = {
   magician: "Matt Magician",
   adriana: "Adriana Idriano",
   vibes: "Valerie Vibes",
+  fanatic: "Freddy Fanatic",
 };
 
 export const RIVAL_PERSONAS: Record<RivalId, string> = {
