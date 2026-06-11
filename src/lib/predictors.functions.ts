@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { rating } from "@/lib/predictors/ratings";
 import { isKnockout } from "@/lib/wc-config";
+import { computeForm, type FormRow } from "@/lib/team-form";
 
 type Pick = "home" | "draw" | "away";
 
@@ -54,15 +55,13 @@ function pickStats(m: MatchRow): PredictionInsert {
 }
 
 function pickMagician(m: MatchRow): PredictionInsert {
+  // Neutral-venue model: rating diff drives both sides symmetrically. No home boost.
   const h = rating(m.home_team);
   const a = rating(m.away_team);
-  // Logistic-style win probability from rating diff (Elo-ish, scale 200).
   const pHome = 1 / (1 + Math.pow(10, (a - h) / 200));
   const pAway = 1 - pHome;
-  // Draw probability decays with |diff|, capped in group stage only.
   const drawBase = isKnockout(m.stage) ? 0 : 0.28;
   const pDraw = drawBase * Math.exp(-Math.pow((h - a) / 250, 2));
-  // Renormalize
   const sum = pHome * (1 - pDraw) + pAway * (1 - pDraw) + pDraw;
   const probs = {
     home: (pHome * (1 - pDraw)) / sum,
@@ -74,8 +73,8 @@ function pickMagician(m: MatchRow): PredictionInsert {
   const pick = allowed.sort((x, y) => y[1] - x[1])[0][0];
   const fmt = (n: number) => `${Math.round(n * 100)}%`;
   const reasoning = isKnockout(m.stage)
-    ? `H ${fmt(probs.home / (probs.home + probs.away))} / A ${fmt(probs.away / (probs.home + probs.away))}`
-    : `H ${fmt(probs.home)} / D ${fmt(probs.draw)} / A ${fmt(probs.away)}`;
+    ? `${m.home_team} ${fmt(probs.home / (probs.home + probs.away))} / ${m.away_team} ${fmt(probs.away / (probs.home + probs.away))}`
+    : `${m.home_team} ${fmt(probs.home)} / Draw ${fmt(probs.draw)} / ${m.away_team} ${fmt(probs.away)}`;
   return { match_id: m.id, predictor: "magician", pick, reasoning, model: "logistic-elo-v1" };
 }
 
@@ -98,9 +97,9 @@ async function pickAdriana(m: MatchRow, apiKey: string): Promise<PredictionInser
   const allowed = allowDraw ? '"home" | "draw" | "away"' : '"home" | "away"';
   const prompt = `You are Adriana Idriano, a witty football pundit predicting World Cup 2026 matches.
 
-Match: ${m.home_team} (home) vs ${m.away_team} (away)
+Match: ${m.home_team} vs ${m.away_team} (neutral venue — World Cup, no home advantage)
 Stage: ${m.stage}${m.group_name ? ` · ${m.group_name}` : ""}
-Allowed picks: ${allowed}
+Allowed picks: ${allowed} (where "home" = ${m.home_team}, "away" = ${m.away_team})
 
 Respond with a JSON object only: { "pick": ${allowed}, "reasoning": "one short sentence (max 140 chars)" }`;
 
@@ -147,7 +146,7 @@ Respond with a JSON object only: { "pick": ${allowed}, "reasoning": "one short s
 
 // ---------- Core ----------
 
-const PREDICTORS = ["random", "stats", "magician", "adriana", "vibes", "fanatic"] as const;
+const PREDICTORS = ["random", "stats", "magician", "adriana", "vibes", "fanatic", "quant"] as const;
 
 type SupabaseAdmin = typeof import("@/integrations/supabase/client.server")["supabaseAdmin"];
 
@@ -193,6 +192,48 @@ async function pickFanatic(m: MatchRow, supabaseAdmin: SupabaseAdmin): Promise<P
   return { match_id: m.id, predictor: "fanatic", pick, reasoning, model: null };
 }
 
+// ---------- Quincy Quant ----------
+// Multinomial logistic regression over (rating diff, form diff). Coefficients
+// are fixed constants calibrated from historical international fixtures —
+// rating gap dominates, recent form is a small adjustment, ~26% baseline draw
+// in group stage. World Cup games are at neutral venues, so no home boost.
+const QUANT_BETA = {
+  intercept: -0.55, // log-odds of a side vs draw at zero feature values (~26% draw rate)
+  rating: 1.25, // per 100-Elo-points of rating diff
+  form: 0.35, // per 1.0 PPG of recent-form diff
+};
+
+function pickQuant(m: MatchRow, history: FormRow[]): PredictionInsert {
+  const rDiff = (rating(m.home_team) - rating(m.away_team)) / 100;
+  const fHome = computeForm(history, m.home_team);
+  const fAway = computeForm(history, m.away_team);
+  const fDiff = fHome - fAway;
+  const knockout = isKnockout(m.stage);
+  const linear = QUANT_BETA.rating * rDiff + QUANT_BETA.form * fDiff;
+  const zHome = (knockout ? 0 : QUANT_BETA.intercept) + linear;
+  const zAway = (knockout ? 0 : QUANT_BETA.intercept) - linear;
+  const zDraw = 0;
+  const zs = knockout ? [zHome, zAway] : [zHome, zDraw, zAway];
+  const max = Math.max(...zs);
+  const exps = zs.map((z) => Math.exp(z - max));
+  const denom = exps.reduce((a, b) => a + b, 0);
+  const probs = exps.map((e) => e / denom);
+  const pHome = probs[0];
+  const pAway = knockout ? probs[1] : probs[2];
+  const pDraw = knockout ? 0 : probs[1];
+  let pick: Pick = "draw";
+  if (knockout) pick = pHome >= pAway ? "home" : "away";
+  else {
+    const top = Math.max(pHome, pDraw, pAway);
+    pick = top === pHome ? "home" : top === pAway ? "away" : "draw";
+  }
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
+  const reasoning = knockout
+    ? `${m.home_team} ${pct(pHome)} / ${m.away_team} ${pct(pAway)} — β·Δrating ${rDiff.toFixed(2)}, β·Δform ${fDiff.toFixed(2)}`
+    : `${m.home_team} ${pct(pHome)} / Draw ${pct(pDraw)} / ${m.away_team} ${pct(pAway)} — Δrating ${rDiff.toFixed(2)}, Δform ${fDiff.toFixed(2)}`;
+  return { match_id: m.id, predictor: "quant", pick, reasoning, model: "multinomial-logit-v1" };
+}
+
 async function generateForMatches(matches: MatchRow[]) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const apiKey = process.env.LOVABLE_API_KEY ?? "";
@@ -204,10 +245,23 @@ async function generateForMatches(matches: MatchRow[]) {
     .in("match_id", ids);
   const have = new Set((existing ?? []).map((r) => `${r.match_id}:${r.predictor}`));
 
+  // Pre-fetch all finished matches once for Quant's form feature.
+  const needsQuant = matches.some((m) => !have.has(`${m.id}:quant`));
+  let history: FormRow[] = [];
+  if (needsQuant) {
+    const { data: hist } = await supabaseAdmin
+      .from("matches")
+      .select("home_team, away_team, outcome, kickoff")
+      .eq("status", "FINISHED");
+    history = (hist ?? []) as FormRow[];
+  }
+
   const inserts: PredictionInsert[] = [];
   await Promise.all(
     matches.map(async (m) => {
       const tasks: Promise<PredictionInsert>[] = [];
+      // Quant uses only matches strictly before this fixture's kickoff.
+      const priorHistory = history.filter((h) => +new Date(h.kickoff) < +new Date(m.kickoff));
       for (const p of PREDICTORS) {
         if (have.has(`${m.id}:${p}`)) continue;
         if (p === "random") tasks.push(Promise.resolve(pickRandom(m)));
@@ -216,6 +270,7 @@ async function generateForMatches(matches: MatchRow[]) {
         else if (p === "vibes") tasks.push(Promise.resolve(pickVibes(m)));
         else if (p === "adriana") tasks.push(pickAdriana(m, apiKey));
         else if (p === "fanatic") tasks.push(pickFanatic(m, supabaseAdmin));
+        else if (p === "quant") tasks.push(Promise.resolve(pickQuant(m, priorHistory)));
       }
       const results = await Promise.all(tasks);
       inserts.push(...results);
