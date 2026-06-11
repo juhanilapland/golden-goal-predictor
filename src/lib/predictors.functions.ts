@@ -245,10 +245,23 @@ async function generateForMatches(matches: MatchRow[]) {
     .in("match_id", ids);
   const have = new Set((existing ?? []).map((r) => `${r.match_id}:${r.predictor}`));
 
+  // Pre-fetch all finished matches once for Quant's form feature.
+  const needsQuant = matches.some((m) => !have.has(`${m.id}:quant`));
+  let history: FormRow[] = [];
+  if (needsQuant) {
+    const { data: hist } = await supabaseAdmin
+      .from("matches")
+      .select("home_team, away_team, outcome, kickoff")
+      .eq("status", "FINISHED");
+    history = (hist ?? []) as FormRow[];
+  }
+
   const inserts: PredictionInsert[] = [];
   await Promise.all(
     matches.map(async (m) => {
       const tasks: Promise<PredictionInsert>[] = [];
+      // Quant uses only matches strictly before this fixture's kickoff.
+      const priorHistory = history.filter((h) => +new Date(h.kickoff) < +new Date(m.kickoff));
       for (const p of PREDICTORS) {
         if (have.has(`${m.id}:${p}`)) continue;
         if (p === "random") tasks.push(Promise.resolve(pickRandom(m)));
@@ -257,6 +270,7 @@ async function generateForMatches(matches: MatchRow[]) {
         else if (p === "vibes") tasks.push(Promise.resolve(pickVibes(m)));
         else if (p === "adriana") tasks.push(pickAdriana(m, apiKey));
         else if (p === "fanatic") tasks.push(pickFanatic(m, supabaseAdmin));
+        else if (p === "quant") tasks.push(Promise.resolve(pickQuant(m, priorHistory)));
       }
       const results = await Promise.all(tasks);
       inserts.push(...results);
