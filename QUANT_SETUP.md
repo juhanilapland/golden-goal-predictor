@@ -74,10 +74,12 @@ scripts/push_predictions.py
 
 2. **Replace `predict()` with your real model**
    ```python
-   def predict(home: str, away: str) -> tuple[str, float]:
+   def predict(home: str, away: str) -> tuple[str, float, dict[str, float]]:
        # Your sklearn / PyTorch / XGBoost code here
-       # Return (pick, confidence)
-       return "home", 0.68
+       # Return (pick, confidence, probs_dict)
+       probs = {"home": 0.55, "draw": 0.22, "away": 0.23}
+       pick = max(probs, key=probs.get)
+       return pick, probs[pick], probs
    ```
 
 3. **Update `MATCHES`**  
