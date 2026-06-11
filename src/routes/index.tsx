@@ -147,7 +147,7 @@ function MatchRow({
   // football-data.org returns UTC; display in Helsinki (EEST, UTC+3)
   const kickoff = new Date(match.kickoff);
   const hasPick = !!pick;
-  const rivalsFull = rivalCount >= 5;
+  const rivalsFull = rivalCount >= 7;
 
   return (
     <div
@@ -171,7 +171,7 @@ function MatchRow({
           {knockout && <span className="chip-gold chip-gold-active">KO</span>}
           <span className={`chip-gold ${rivalsFull ? "chip-gold-active" : ""}`}>
             {rivalsFull ? <CheckIcon className="w-2.5 h-2.5" /> : <LockIcon className="w-2.5 h-2.5" />}
-            {rivalCount}/5
+            {rivalCount}/7
           </span>
         </div>
       </div>
