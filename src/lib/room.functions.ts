@@ -69,6 +69,56 @@ async function callGateway(apiKey: string, prompt: string): Promise<string | nul
   }
 }
 
+type TeamForm = { results: string[]; w: number; d: number; l: number; streak: string };
+
+function computeTeamForm(
+  allFinished: { home_team?: string; away_team?: string; outcome: string | null; home_score: number | null; away_score: number | null }[],
+  matchesWithTeams: { home_team: string; away_team: string }[],
+): Map<string, TeamForm> {
+  // We need home_team/away_team on allFinished; if missing fall back to empty form.
+  const form = new Map<string, TeamForm>();
+  for (const m of allFinished) {
+    if (!m.home_team || !m.away_team) continue;
+    const actual = m.outcome ?? outcomeFromScore(m.home_score, m.away_score);
+    if (!actual) continue;
+    for (const team of [m.home_team, m.away_team]) {
+      if (!form.has(team)) form.set(team, { results: [], w: 0, d: 0, l: 0, streak: "" });
+    }
+    const h = form.get(m.home_team)!;
+    const a = form.get(m.away_team)!;
+    if (actual === "home") { h.results.push("W"); h.w++; a.results.push("L"); a.l++; }
+    else if (actual === "away") { a.results.push("W"); a.w++; h.results.push("L"); h.l++; }
+    else { h.results.push("D"); h.d++; a.results.push("D"); a.d++; }
+  }
+  // Compute current streak (consecutive identical results at the tail).
+  for (const f of form.values()) {
+    if (f.results.length === 0) { f.streak = "—"; continue; }
+    const last = f.results[f.results.length - 1];
+    let n = 0;
+    for (let i = f.results.length - 1; i >= 0 && f.results[i] === last; i--) n++;
+    f.streak = `${last}${n}`;
+  }
+  // Only keep teams referenced in the recent matches block.
+  const wanted = new Set<string>();
+  for (const m of matchesWithTeams) { wanted.add(m.home_team); wanted.add(m.away_team); }
+  for (const team of Array.from(form.keys())) {
+    if (!wanted.has(team)) form.delete(team);
+  }
+  return form;
+}
+
+function formatFormBlock(form: Map<string, TeamForm>): string {
+  if (form.size === 0) return "";
+  const lines = Array.from(form.entries()).map(([team, f]) => {
+    const last5 = f.results.slice(-5).join("");
+    let flag = "";
+    if (f.streak.startsWith("W") && Number(f.streak.slice(1)) >= 3) flag = " 🔥";
+    else if (f.streak.startsWith("L") && Number(f.streak.slice(1)) >= 2) flag = " 🥶";
+    return `- ${team}: ${last5} · ${f.w}W-${f.d}D-${f.l}L · streak: ${f.streak}${flag}`;
+  });
+  return `\nFORM CONTEXT (last 5, oldest → newest):\n${lines.join("\n")}\n`;
+}
+
 function buildPrompt(
   rivalId: RivalId,
   persona: string,
@@ -76,6 +126,7 @@ function buildPrompt(
   chat: ChatRow[],
   matchesHeader: string,
   standings: Standing[],
+  formBlock: string,
 ): string {
   const myPicks = rivalMatches.map((m) => {
     const mine = m.predictions.find((p) => p.predictor === rivalId);
@@ -115,7 +166,7 @@ ${standingLine}
 
 ${matchesHeader}
 ${myPicks.join("\n") || "(no recent results yet)"}
-
+${formBlock}
 Current chat in the game room (oldest first):
 ${transcript || "(empty)"}
 
