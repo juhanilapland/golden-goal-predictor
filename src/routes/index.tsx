@@ -145,7 +145,7 @@ function MatchRow({
   const locked = new Date(match.kickoff).getTime() <= Date.now() || (match.status !== "SCHEDULED" && match.status !== "TIMED");
   const knockout = isKnockout(match.stage);
   // football-data.org returns UTC; display in Helsinki (EEST, UTC+3)
-  const kickoff = new Date(new Date(match.kickoff).getTime() + 3 * 60 * 60 * 1000);
+  const kickoff = new Date(match.kickoff);
   const hasPick = !!pick;
   const rivalsFull = rivalCount >= 5;
 
