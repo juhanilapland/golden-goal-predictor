@@ -308,9 +308,13 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
   let replied = 0;
   let runningChat: ChatRow[] = [...chat];
 
+  const teamForm = computeTeamForm(allFinished ?? [], matchesWithPreds);
+  const fanaticFormBlock = formatFormBlock(teamForm);
+
   for (const rivalId of todo) {
     const persona = personaOverrides.get(rivalId) ?? RIVAL_PERSONAS[rivalId];
-    const prompt = buildPrompt(rivalId, persona, matchesWithPreds, runningChat, matchesHeader, standings);
+    const formBlock = rivalId === "fanatic" ? fanaticFormBlock : "";
+    const prompt = buildPrompt(rivalId, persona, matchesWithPreds, runningChat, matchesHeader, standings, formBlock);
     const message = await callGateway(apiKey, prompt);
     if (message) {
       const { data: inserted } = await supabaseAdmin
