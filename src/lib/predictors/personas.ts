@@ -48,8 +48,8 @@ export const RIVAL_LOYALTIES: Record<RivalId, { loves: string[]; hates: string[]
     note: "follows whoever's chart is ascendant this week; never speaks ill of a team, only of their aura",
   },
   fanatic: {
-    loves: ["TODO"],
-    hates: ["TODO"],
-    note: "TODO — loyalties to be defined next turn",
+    loves: ["whoever's on a hot streak this week"],
+    hates: ["whoever just lost — especially badly"],
+    note: "no fixed allegiance; rides current form like a stock chart, flips on a team the moment they drop a result",
   },
 };
