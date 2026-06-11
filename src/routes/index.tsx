@@ -203,12 +203,14 @@ function GuessPage() {
   const [rivalCounts, setRivalCounts] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [lastSynced, setLastSynced] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("wc26_last_synced") ?? null;
-    }
-    return null;
-  });
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const stored = localStorage.getItem("wc26_last_synced");
+    if (stored) setLastSynced(stored);
+  }, []);
 
   const generatePicks = useServerFn(generateCompetitorPicks);
 
@@ -326,7 +328,7 @@ function GuessPage() {
             {syncing ? "Syncing…" : "Refresh fixtures"}
           </button>
           <span className="text-[10px] text-muted-foreground">
-            Last updated: {formatTimeAgo(lastSynced)}
+            Last updated: {mounted ? formatTimeAgo(lastSynced) : "Never"}
           </span>
         </div>
       </header>
