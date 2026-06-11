@@ -253,9 +253,19 @@ export const generateCompetitorPicks = createServerFn({ method: "POST" })
 // (Freddy only reads FINISHED matches strictly before m.kickoff).
 export const generateAllMissingPicks = createServerFn({ method: "POST" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // Only backfill matches that already have at least one prediction — i.e. ones
+  // the user has picked at some point (picks are what trigger rival generation).
+  // Future un-picked matches stay untouched until the user picks them.
+  const { data: predRows, error: predErr } = await supabaseAdmin
+    .from("predictions")
+    .select("match_id");
+  if (predErr) throw new Error(predErr.message);
+  const ids = Array.from(new Set((predRows ?? []).map((r) => r.match_id)));
+  if (ids.length === 0) return { generated: 0 };
   const { data: matches, error } = await supabaseAdmin
     .from("matches")
     .select("id, stage, group_name, home_team, away_team, kickoff, status")
+    .in("id", ids)
     .order("kickoff", { ascending: true });
   if (error) throw new Error(error.message);
   return await generateForMatches((matches ?? []) as MatchRow[]);
