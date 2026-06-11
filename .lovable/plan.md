@@ -1,53 +1,67 @@
-# Neutral-venue fix + logistic-regression predictor
+# Connect your local ML model via REST (push direction)
 
-## Part 1 — Neutral venue audit & relabel
+You run the model on your laptop whenever you want. When it's done, your Python script POSTs the results to a Lovable endpoint, which stores them as Quincy's picks. Lovable never has to reach your laptop.
 
-**Audit (math).** All current predictors (`stats`, `magician`, `vibes`, `homer`, `random`, `llm`) read only `rating(home_team)` and `rating(away_team)`; no additive home boost, no asymmetric thresholds. The math is already neutral. No code changes needed in the scoring logic — only confirmation comments.
+## Flow
 
-**Relabel (reasoning strings).** Replace `H / D / A` and "(home)"/"(away)" wording in user-visible reasoning with neutral labels using team names directly:
-
-- `pickStats`: keep the rating diff sentence — already uses team names, fine.
-- `pickMagician`: change `H 45% / D 28% / A 27%` → `{HomeTeam} 45% / Draw 28% / {AwayTeam} 27%` (knockout: drop draw).
-- `pickLlm` prompt: change `Match: X (home) vs Y (away)` → `Match: X vs Y (neutral venue, World Cup)` and instruct the model that there is no home advantage. Keep the schedule-order convention internally (DB columns stay `home_team`/`away_team` — that's just fixture ordering from the data feed).
-
-No DB migration. No UI changes beyond the reasoning text rendered in cards.
-
-## Part 2 — New predictor: "The Quant" (logistic regression)
-
-A new persona that picks via a small, transparent multinomial logistic model with **fixed coefficients** derived from well-known international-football priors (rating diff dominates; recent form is a small adjustment; draw rate ~26% in group stage, 0 in knockout pre-shootout). We don't have a historical match corpus inside the DB to fit live, so coefficients are hardcoded constants — documented in code as "calibrated from historical international fixtures." This stays honest to the "trained on history" framing without inventing fake training data.
-
-### Features per match
-- `ratingDiff = rating(home) - rating(away)` (scaled /100)
-- `formHome`, `formAway`: points-per-game over last N=5 completed matches for that team, pulled from `matches` table where `status='FINISHED'` and the team appears. Defaults to 1.5 when fewer than 2 matches exist.
-- `formDiff = formHome - formAway`
-- `isKnockout` flag
-
-### Model
-Two logits (vs draw as baseline) in group stage, one logit (home vs away) in knockout:
-
-```
-zHome = β0_h + β1·ratingDiff + β2·formDiff
-zAway = β0_a − β1·ratingDiff − β2·formDiff
-softmax over {zHome, 0, zAway}    // group stage
-softmax over {zHome, zAway}        // knockout
+```text
+Your laptop (Python)                Lovable
+┌────────────────────┐              ┌──────────────────────────────┐
+│ train + predict.py │── POST ────► │ /api/public/quant-predictions│
+│ for each match:    │   JSON       │  • validate body             │
+│   {match_id,       │              │  • upsert into predictions   │
+│    pick,           │              │    (predictor = 'quant')     │
+│    confidence}     │              └──────────────────────────────┘
+└────────────────────┘                            │
+                                                  ▼
+                                        Quincy's picks appear
+                                        in the app (Room/Results)
 ```
 
-Constants (calibrated, documented inline): `β0_h = β0_a = -0.55` (gives ~26% baseline draw), `β1 = 1.25`, `β2 = 0.35`. Knockout uses `β0_h = β0_a = 0`.
+## What changes in the app
 
-Pick = argmax. Reasoning string: `{Team} {p}% · Draw {p}% · {Team} {p}% — logit Δrating {x}, Δform {y}`.
+### 1. New public server route — `src/routes/api/public/quant-predictions.ts`
+- `POST` handler under `/api/public/*` (bypasses the published-site auth gate per your "no auth, dev only" choice).
+- Validates body with Zod:
+  ```ts
+  { predictions: Array<{ match_id: number, pick: 'home'|'draw'|'away', confidence?: number, reasoning?: string }> }
+  ```
+- Loads `supabaseAdmin` inside the handler (service role, RLS bypassed) and upserts each row into `predictions` with `predictor = 'quant'`, `model = 'local-logreg'`.
+- Returns `{ inserted: N }`.
+- `GET`/`DELETE` return 405.
+- Note: the `predictions` table currently has no UPDATE/INSERT policies and no unique constraint on `(match_id, predictor)`. The admin client bypasses RLS so inserts work, but to make this idempotent (re-run the script without duplicates) we need a small migration — see step 2.
 
-### Persona row
-Insert `predictors` row: `id='quant'`, `name='The Quant'`, `tagline='Logistic regression over rating + recent form.'`, `sort_order` next. Add matching `rival_personas` entry with a wonky-stats persona voice.
+### 2. Migration — make Quincy's predictions upsertable
+- Add `UNIQUE (match_id, predictor)` to `predictions` so the endpoint can use `ON CONFLICT … DO UPDATE`.
+- No new table, no new RLS rules, no grant changes.
 
-### Files
-- `src/lib/predictors.functions.ts`: add `pickQuant(m, ctx)` where `ctx` carries pre-fetched recent results for both teams; extend the orchestrator that generates predictions so it batches one form query per matchday. Wire `quant` into the predictor list alongside relabel changes above.
-- `src/lib/team-form.ts` (new, client-safe helper): pure function `computeForm(results, team)` returning points-per-game.
-- Migration: `INSERT INTO predictors` for `quant`; `INSERT INTO rival_personas` for `quant` persona text.
+### 3. Switch Quincy's runtime behavior — `src/lib/predictors.functions.ts`
+- Today `pickQuant()` computes the pick from hardcoded coefficients on every request.
+- Change it to: **read** the row your script pushed (`predictions` where `predictor='quant'` for that match). If a pushed row exists, return it. If not, fall back to the current hardcoded formula so the app still works before you've run your script.
+- Update the persona text on `/personas` to honestly describe this: "trained offline on historical match data, predictions pushed in via REST."
 
-### Backfill
-After deploy, re-run prediction generation for upcoming matches so `quant` has picks alongside the others (existing manual trigger / cron path — no new endpoint).
+### 4. Tiny Python reference script (lives in `/scripts/push_predictions.py`, runs on your laptop)
+- ~30 lines: read matches list (either hardcoded or fetched from the public matches endpoint), run your sklearn model, POST to `https://project--2140653b-7389-4ba2-a831-55070ace4acf.lovable.app/api/public/quant-predictions`.
+- Included as documentation/template — Lovable doesn't execute it.
+
+## Technical details
+
+- **Endpoint URL (stable, won't change if you rename the project):**
+  `https://project--2140653b-7389-4ba2-a831-55070ace4acf-dev.lovable.app/api/public/quant-predictions` (preview)
+  `https://project--2140653b-7389-4ba2-a831-55070ace4acf.lovable.app/api/public/quant-predictions` (published)
+- **No auth header required** (dev-only choice). Before publishing publicly, we'd add a shared-secret header check — flagged as a TODO comment in the route.
+- **Idempotency:** the unique constraint + upsert means re-running your Python script overwrites prior picks for the same match instead of duplicating rows.
+- **Confidence:** stored in the existing `reasoning` text column as `"confidence=0.62"` (cheap, no schema change) unless you'd rather I add a numeric `confidence` column — happy to, just say the word.
+- **No changes** to: chat, guesses, matches, other predictors (Adriana stays on Lovable AI Gateway), auth, or the personas DB row beyond text.
+
+## What you'll do on your end (not part of this plan, just so you know)
+
+1. `pip install scikit-learn pandas requests`
+2. Train your logistic regression on whatever historical dataset you choose (e.g. the public international-results CSV on Kaggle).
+3. Run `python scripts/push_predictions.py` — picks appear in the app within seconds.
 
 ## Out of scope
-- Online learning / refitting from results inside the app.
-- Changing DB column names (`home_team`/`away_team` remain — they're fixture order from the data feed).
-- Adding a host-nation bonus.
+
+- Auth on the endpoint (explicitly deferred).
+- Storing model artifacts / training data in Lovable.
+- A "last updated" indicator in the UI (can add later if useful).
