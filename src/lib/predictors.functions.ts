@@ -54,15 +54,13 @@ function pickStats(m: MatchRow): PredictionInsert {
 }
 
 function pickMagician(m: MatchRow): PredictionInsert {
+  // Neutral-venue model: rating diff drives both sides symmetrically. No home boost.
   const h = rating(m.home_team);
   const a = rating(m.away_team);
-  // Logistic-style win probability from rating diff (Elo-ish, scale 200).
   const pHome = 1 / (1 + Math.pow(10, (a - h) / 200));
   const pAway = 1 - pHome;
-  // Draw probability decays with |diff|, capped in group stage only.
   const drawBase = isKnockout(m.stage) ? 0 : 0.28;
   const pDraw = drawBase * Math.exp(-Math.pow((h - a) / 250, 2));
-  // Renormalize
   const sum = pHome * (1 - pDraw) + pAway * (1 - pDraw) + pDraw;
   const probs = {
     home: (pHome * (1 - pDraw)) / sum,
@@ -74,8 +72,8 @@ function pickMagician(m: MatchRow): PredictionInsert {
   const pick = allowed.sort((x, y) => y[1] - x[1])[0][0];
   const fmt = (n: number) => `${Math.round(n * 100)}%`;
   const reasoning = isKnockout(m.stage)
-    ? `H ${fmt(probs.home / (probs.home + probs.away))} / A ${fmt(probs.away / (probs.home + probs.away))}`
-    : `H ${fmt(probs.home)} / D ${fmt(probs.draw)} / A ${fmt(probs.away)}`;
+    ? `${m.home_team} ${fmt(probs.home / (probs.home + probs.away))} / ${m.away_team} ${fmt(probs.away / (probs.home + probs.away))}`
+    : `${m.home_team} ${fmt(probs.home)} / Draw ${fmt(probs.draw)} / ${m.away_team} ${fmt(probs.away)}`;
   return { match_id: m.id, predictor: "magician", pick, reasoning, model: "logistic-elo-v1" };
 }
 
@@ -98,9 +96,9 @@ async function pickAdriana(m: MatchRow, apiKey: string): Promise<PredictionInser
   const allowed = allowDraw ? '"home" | "draw" | "away"' : '"home" | "away"';
   const prompt = `You are Adriana Idriano, a witty football pundit predicting World Cup 2026 matches.
 
-Match: ${m.home_team} (home) vs ${m.away_team} (away)
+Match: ${m.home_team} vs ${m.away_team} (neutral venue — World Cup, no home advantage)
 Stage: ${m.stage}${m.group_name ? ` · ${m.group_name}` : ""}
-Allowed picks: ${allowed}
+Allowed picks: ${allowed} (where "home" = ${m.home_team}, "away" = ${m.away_team})
 
 Respond with a JSON object only: { "pick": ${allowed}, "reasoning": "one short sentence (max 140 chars)" }`;
 
@@ -147,7 +145,7 @@ Respond with a JSON object only: { "pick": ${allowed}, "reasoning": "one short s
 
 // ---------- Core ----------
 
-const PREDICTORS = ["random", "stats", "magician", "adriana", "vibes", "fanatic"] as const;
+const PREDICTORS = ["random", "stats", "magician", "adriana", "vibes", "fanatic", "quant"] as const;
 
 type SupabaseAdmin = typeof import("@/integrations/supabase/client.server")["supabaseAdmin"];
 
