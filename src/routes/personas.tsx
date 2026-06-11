@@ -10,6 +10,7 @@ import avatarStats from "@/assets/avatar-stats.jpg";
 import avatarMagician from "@/assets/avatar-magician.jpg";
 import avatarAdriana from "@/assets/avatar-adriana.jpg";
 import avatarVibes from "@/assets/avatar-vibes.jpg";
+import avatarFanatic from "@/assets/avatar-fanatic.jpg";
 
 const AVATARS: Record<RivalId, string> = {
   random: avatarRandom,
@@ -17,6 +18,7 @@ const AVATARS: Record<RivalId, string> = {
   magician: avatarMagician,
   adriana: avatarAdriana,
   vibes: avatarVibes,
+  fanatic: avatarFanatic,
 };
 
 const MAX_LEN = 2000;
