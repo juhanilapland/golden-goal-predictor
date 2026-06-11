@@ -14,6 +14,7 @@ import { Route as ResultsRouteImport } from './routes/results'
 import { Route as PersonasRouteImport } from './routes/personas'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicSyncFixturesRouteImport } from './routes/api/public/sync-fixtures'
+import { Route as ApiPublicQuantPredictionsRouteImport } from './routes/api/public/quant-predictions'
 
 const RoomRoute = RoomRouteImport.update({
   id: '/room',
@@ -40,12 +41,19 @@ const ApiPublicSyncFixturesRoute = ApiPublicSyncFixturesRouteImport.update({
   path: '/api/public/sync-fixtures',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicQuantPredictionsRoute =
+  ApiPublicQuantPredictionsRouteImport.update({
+    id: '/api/public/quant-predictions',
+    path: '/api/public/quant-predictions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/personas': typeof PersonasRoute
   '/results': typeof ResultsRoute
   '/room': typeof RoomRoute
+  '/api/public/quant-predictions': typeof ApiPublicQuantPredictionsRoute
   '/api/public/sync-fixtures': typeof ApiPublicSyncFixturesRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +61,7 @@ export interface FileRoutesByTo {
   '/personas': typeof PersonasRoute
   '/results': typeof ResultsRoute
   '/room': typeof RoomRoute
+  '/api/public/quant-predictions': typeof ApiPublicQuantPredictionsRoute
   '/api/public/sync-fixtures': typeof ApiPublicSyncFixturesRoute
 }
 export interface FileRoutesById {
@@ -61,6 +70,7 @@ export interface FileRoutesById {
   '/personas': typeof PersonasRoute
   '/results': typeof ResultsRoute
   '/room': typeof RoomRoute
+  '/api/public/quant-predictions': typeof ApiPublicQuantPredictionsRoute
   '/api/public/sync-fixtures': typeof ApiPublicSyncFixturesRoute
 }
 export interface FileRouteTypes {
@@ -70,15 +80,23 @@ export interface FileRouteTypes {
     | '/personas'
     | '/results'
     | '/room'
+    | '/api/public/quant-predictions'
     | '/api/public/sync-fixtures'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/personas' | '/results' | '/room' | '/api/public/sync-fixtures'
+  to:
+    | '/'
+    | '/personas'
+    | '/results'
+    | '/room'
+    | '/api/public/quant-predictions'
+    | '/api/public/sync-fixtures'
   id:
     | '__root__'
     | '/'
     | '/personas'
     | '/results'
     | '/room'
+    | '/api/public/quant-predictions'
     | '/api/public/sync-fixtures'
   fileRoutesById: FileRoutesById
 }
@@ -87,6 +105,7 @@ export interface RootRouteChildren {
   PersonasRoute: typeof PersonasRoute
   ResultsRoute: typeof ResultsRoute
   RoomRoute: typeof RoomRoute
+  ApiPublicQuantPredictionsRoute: typeof ApiPublicQuantPredictionsRoute
   ApiPublicSyncFixturesRoute: typeof ApiPublicSyncFixturesRoute
 }
 
@@ -127,6 +146,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicSyncFixturesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/quant-predictions': {
+      id: '/api/public/quant-predictions'
+      path: '/api/public/quant-predictions'
+      fullPath: '/api/public/quant-predictions'
+      preLoaderRoute: typeof ApiPublicQuantPredictionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -135,8 +161,19 @@ const rootRouteChildren: RootRouteChildren = {
   PersonasRoute: PersonasRoute,
   ResultsRoute: ResultsRoute,
   RoomRoute: RoomRoute,
+  ApiPublicQuantPredictionsRoute: ApiPublicQuantPredictionsRoute,
   ApiPublicSyncFixturesRoute: ApiPublicSyncFixturesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
