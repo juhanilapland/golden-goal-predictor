@@ -1,0 +1,1 @@
+ALTER TABLE public.predictions ADD CONSTRAINT predictions_match_predictor_unique UNIQUE (match_id, predictor);
