@@ -8,6 +8,7 @@ import { z } from "zod";
 //   if (request.headers.get("x-quant-secret") !== expected) return new Response("unauthorized", { status: 401 });
 
 const BodySchema = z.object({
+  model: z.string().min(1).max(200),
   predictions: z
     .array(
       z.object({
