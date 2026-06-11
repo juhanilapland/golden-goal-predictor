@@ -147,7 +147,55 @@ Respond with a JSON object only: { "pick": ${allowed}, "reasoning": "one short s
 
 // ---------- Core ----------
 
-const PREDICTORS = ["random", "stats", "magician", "adriana", "vibes"] as const;
+const PREDICTORS = ["random", "stats", "magician", "adriana", "vibes", "fanatic"] as const;
+
+type SupabaseAdmin = Awaited<ReturnType<typeof getAdmin>>;
+async function getAdmin() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
+
+async function pickFanatic(m: MatchRow, supabaseAdmin: SupabaseAdmin): Promise<PredictionInsert> {
+  const { data: prior } = await supabaseAdmin
+    .from("matches")
+    .select("home_team, away_team, outcome")
+    .eq("status", "FINISHED")
+    .lt("kickoff", m.kickoff)
+    .or(
+      `home_team.in.("${m.home_team}","${m.away_team}"),away_team.in.("${m.home_team}","${m.away_team}")`,
+    );
+
+  let winsH = 0;
+  let winsA = 0;
+  for (const row of prior ?? []) {
+    if (row.outcome === "home") {
+      if (row.home_team === m.home_team) winsH++;
+      else if (row.home_team === m.away_team) winsA++;
+    } else if (row.outcome === "away") {
+      if (row.away_team === m.home_team) winsH++;
+      else if (row.away_team === m.away_team) winsA++;
+    }
+  }
+
+  const knockout = isKnockout(m.stage);
+  let pick: Pick;
+  let reasoning: string;
+  if (winsH > winsA) {
+    pick = "home";
+    reasoning = `${m.home_team} ${winsH}W · ${m.away_team} ${winsA}W — backing ${m.home_team}.`;
+  } else if (winsA > winsH) {
+    pick = "away";
+    reasoning = `${m.home_team} ${winsH}W · ${m.away_team} ${winsA}W — backing ${m.away_team}.`;
+  } else {
+    const opts: Pick[] = knockout ? ["home", "away"] : ["home", "draw", "away"];
+    pick = opts[Math.floor(Math.random() * opts.length)];
+    reasoning =
+      winsH === 0 && winsA === 0
+        ? `No prior games — coin flip → ${pick}.`
+        : `Both ${winsH}W — tie, rolled ${pick}.`;
+  }
+  return { match_id: m.id, predictor: "fanatic", pick, reasoning, model: null };
+}
 
 async function generateForMatches(matches: MatchRow[]) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
