@@ -245,12 +245,17 @@ export const generateCompetitorPicks = createServerFn({ method: "POST" })
     return await generateForMatches([m as MatchRow]);
   });
 
+// Backfills any (match × predictor) pair missing a prediction — across all matches,
+// not just upcoming ones. This is what lets a new guesser added mid-tournament
+// participate fairly: their picks get generated for every past match too.
+// Safe because the upsert's onConflict("match_id,predictor") never overwrites
+// an existing pick, and none of the predictors peek at match outcomes
+// (Freddy only reads FINISHED matches strictly before m.kickoff).
 export const generateAllMissingPicks = createServerFn({ method: "POST" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: matches, error } = await supabaseAdmin
     .from("matches")
     .select("id, stage, group_name, home_team, away_team, kickoff, status")
-    .gte("kickoff", new Date().toISOString())
     .order("kickoff", { ascending: true });
   if (error) throw new Error(error.message);
   return await generateForMatches((matches ?? []) as MatchRow[]);
