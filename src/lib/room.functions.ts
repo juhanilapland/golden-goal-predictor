@@ -337,17 +337,19 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
     const formBlock = rivalId === "fanatic" ? fanaticFormBlock : "";
     const prompt = buildPrompt(rivalId, persona, matchesWithPreds, runningChat, matchesHeader, standings, formBlock);
     const message = await callGateway(apiKey, prompt);
-    if (message) {
-      const { data: inserted } = await supabaseAdmin
-        .from("chat_messages")
-        .insert({ author: rivalId, body: message })
-        .select("author, body, created_at")
-        .single();
-      if (inserted) {
-        runningChat.push(inserted as ChatRow);
-        if (runningChat.length > 20) runningChat = runningChat.slice(-20);
-        replied++;
-      }
+    const finalMessage = message ?? FALLBACK_MESSAGES[rivalId];
+    const { data: inserted, error: insErr } = await supabaseAdmin
+      .from("chat_messages")
+      .insert({ author: rivalId, body: finalMessage })
+      .select("author, body, created_at")
+      .single();
+    if (insErr) {
+      console.warn("[room] insert failed for", rivalId, insErr.message);
+    }
+    if (inserted) {
+      runningChat.push(inserted as ChatRow);
+      if (runningChat.length > 20) runningChat = runningChat.slice(-20);
+      if (message) replied++;
     }
     // Stagger 1.5–4s before the next rival
     await delay(1500 + Math.random() * 2500);
