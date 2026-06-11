@@ -219,6 +219,7 @@ async function generateForMatches(matches: MatchRow[]) {
         else if (p === "magician") tasks.push(Promise.resolve(pickMagician(m)));
         else if (p === "vibes") tasks.push(Promise.resolve(pickVibes(m)));
         else if (p === "adriana") tasks.push(pickAdriana(m, apiKey));
+        else if (p === "fanatic") tasks.push(pickFanatic(m, supabaseAdmin));
       }
       const results = await Promise.all(tasks);
       inserts.push(...results);
