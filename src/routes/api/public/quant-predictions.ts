@@ -60,6 +60,9 @@ export const Route = createFileRoute("/api/public/quant-predictions")({
             pick: p.pick,
             reasoning: reasoning.slice(0, 500),
             model: "local-logreg",
+            prob_home: p.prob_home ?? null,
+            prob_draw: p.prob_draw ?? null,
+            prob_away: p.prob_away ?? null,
           };
         });
 
