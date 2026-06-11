@@ -1,72 +1,66 @@
-# Results Page Redesign
+# Add Freddy Fanatic (predictor only)
 
-Tell one clear story: **who is winning and by how much**. Stack the content top to bottom — podium first, then a scannable match list with every rival's pick visible inline.
+A sixth rival who "learns" as the tournament progresses by tallying each team's prior wins. Persona/chat style is deliberately deferred to a follow-up.
 
-## Scope
+## Prediction logic
 
-Rework `src/routes/results.tsx`. Keep the data model, server functions, palette, and typography. Add a few CSS utilities to `src/styles.css` if needed.
+For an upcoming match between Home (H) and Away (A):
 
-Out of scope: persona workshop, guess page, new server functions, leaderboard logic changes (still points + correct count).
+1. Pull all FINISHED matches that kicked off before this match's kickoff and involve H or A.
+2. Count wins per team from `matches.outcome` (`home` / `away` / `draw`). Draws contribute 0 wins to either team.
+3. Compare `wins(H)` vs `wins(A)`:
+   - `wins(H) > wins(A)` → pick `home`
+   - `wins(A) > wins(H)` → pick `away`
+   - Tie (including both 0, i.e. neither has played) → random:
+     - Group stage: `home | draw | away`
+     - Knockout: `home | away`
+4. Reasoning string examples:
+   - `"Mexico 2W · South Africa 0W — backing Mexico."`
+   - `"No prior games — coin flip → home."`
+   - `"Both 1W — tie, rolled away."`
 
-## Section 1 — Hero leaderboard ("the podium")
+This means his very first matchday is fully random, and he gradually shifts to evidence-based picks as results accumulate. No model field (`model: null`).
 
-Replace the current 4-column table.
+## Changes
 
-- **Top row**: three podium tiles for ranks 1–3, sized 2 / 3 / 1 visually (gold center, silver left, bronze right) on `md+`. Stack vertically on mobile in 1-2-3 order. Each tile shows:
-  - Big avatar (80px) with rank medal overlay
-  - Rival name (Cinzel) + tagline
-  - Points (huge gold Cinzel) and "X / Y correct" underneath
-  - Gap row: "+N pts ahead" for #1, "−N from #1" for #2/#3
-  - Highlight Juhani's tile with a subtle "YOU" chip when in top 3
-- **Below podium**: compact ranked rows for the remaining rivals (4th–6th). Same row anatomy as today but slimmer: rank, avatar, name, accuracy %, points, gap-from-leader.
-- **Header strip**: `N played · M to play · Σ points awarded` summary line in muted small caps.
+### 1. `src/lib/predictors/personas.ts`
+- Extend `RivalId` union with `"fanatic"`.
+- Append `"fanatic"` to `RIVAL_ORDER`.
+- `RIVAL_NAMES.fanatic = "Freddy Fanatic"`.
+- Add a **placeholder** persona string in `RIVAL_PERSONAS.fanatic` (single short line, marked TODO) — real persona drafted in the next turn.
+- Add a placeholder `RIVAL_LOYALTIES.fanatic` entry (also TODO-marked) so type completeness holds.
 
-## Section 2 — Stage filter
+### 2. `src/lib/predictors.functions.ts`
+- Add `pickFanatic(m, supabaseAdmin)` — async because it queries past results.
+- Query:
+  ```sql
+  select home_team, away_team, outcome
+  from matches
+  where status = 'FINISHED'
+    and kickoff < <this match kickoff>
+    and (home_team in (H, A) or away_team in (H, A))
+  ```
+- Tally wins per team in JS, then apply the logic above.
+- Append `"fanatic"` to the `PREDICTORS` tuple.
+- In the `generateForMatches` loop, route `"fanatic"` to `pickFanatic(m, supabaseAdmin)` (passing the admin client so we don't re-import per call).
 
-Keep current pill row. Move it above the match list. No visual change.
+### 3. Database — `predictors` table
+Insert a row so the results page lists him:
+```
+id: 'fanatic'
+name: 'Freddy Fanatic'
+tagline: 'Learns as the tournament unfolds.'
+sort_order: 60   (after vibes)
+```
+This is a data insert, not a schema change.
 
-## Section 3 — Match list with always-visible pick grid
+### 4. Backfill for match 1
+The five existing rivals already saved picks for Mexico vs South Africa. Calling `generateCompetitorPicks({ matchId: 537327 })` once will fill in only Freddy's missing row (existing `have` set skips the others). Since no FINISHED matches exist yet, his match-1 pick will be random — exactly as specified.
 
-Replace the click-to-expand row with a denser card per match. Each card is one horizontal row at `md+`, two-line stack on mobile.
+## Out of scope (next turn)
+- Freddy's voice / persona prompt for the game room chat.
+- Loyalties (loves / hates) — placeholder for now.
+- Any UI surface changes beyond him naturally appearing in the predictor list.
 
-Per match row:
-- **Left**: kickoff time stub (same treatment as the index page card) + stage chip + group chip
-- **Center**: `Home — score — Away` matchup. Score in gold Cinzel when finished, em-dash when upcoming, status tag otherwise. Tiny FT / LIVE chip.
-- **Right**: a 6-cell pick grid (one cell per rival, fixed order matching the leaderboard). Each cell:
-  - Avatar (24px) on top
-  - Pick pill below (`H` / `D` / `A`)
-  - Green ring + check overlay if correct, red ring + strike if wrong, dim if no pick, neutral if upcoming
-  - Title attribute = `"{Rival name}: {pick} — {reasoning or actual}"` for hover/tap detail
-- **Far right**: points awarded this match for the leader (small gold number) — optional, only when finished.
-
-On mobile (<640): the pick grid wraps under the matchup as a 6-column row, avatars shrink to 20px, names hidden, pick letters readable.
-
-No expand/collapse needed — everything fits inline. Tapping an avatar opens a small inline tooltip/popover with the reasoning text (use a simple controlled state, one open at a time).
-
-## Section 4 — Empty / loading states
-
-- Loading: keep "Loading…"
-- No finished matches yet: show a friendly hero card ("Tournament hasn't kicked off — picks lock as matches play") with disabled-looking podium silhouettes instead of zeros everywhere.
-
-## Visual treatment
-
-- Reuse existing tokens: `--gold`, `--gold-dim`, `--gold-deep`, `--card`, `--muted`.
-- New utilities (`src/styles.css`):
-  - `medal-gold`, `medal-silver`, `medal-bronze` — small circular rank badge with metallic gradient
-  - `pick-cell-correct`, `pick-cell-wrong`, `pick-cell-pending` — applied to the pick grid cells
-- Podium gold tile gets the existing `locked-accent` top stripe + a stronger outer glow.
-- Keep "Generate missing picks" button in header but de-emphasize it (ghost variant) — it's an admin action, not the story.
-
-## Mobile (360px)
-
-- Podium tiles stack full width, rank #1 first.
-- Summary strip wraps to two lines if needed.
-- Match card stacks: stub line → matchup line → 6-cell pick row (`grid-cols-6`).
-- No horizontal scroll.
-
-## Acceptance
-
-- A first-time visitor instantly knows who is in 1st and by how many points.
-- For any played match, you can see all 6 picks and who got it right without clicking.
-- Page works at 360px with no overflow.
-- All existing data wiring preserved (no schema or server-function changes).
+## Open question
+Should "wins" only count **group-stage + knockout matches in this tournament** (the only matches in our DB anyway), or should we also weight draws somehow (e.g. 1 point per draw)? Current plan: pure win count, draws ignored. Confirm or I'll go with that.

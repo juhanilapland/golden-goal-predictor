@@ -1,6 +1,6 @@
-export type RivalId = "random" | "stats" | "magician" | "adriana" | "vibes";
+export type RivalId = "random" | "stats" | "magician" | "adriana" | "vibes" | "fanatic";
 
-export const RIVAL_ORDER: RivalId[] = ["random", "stats", "magician", "adriana", "vibes"];
+export const RIVAL_ORDER: RivalId[] = ["random", "stats", "magician", "adriana", "vibes", "fanatic"];
 
 export const RIVAL_NAMES: Record<RivalId, string> = {
   random: "Richard Random",
