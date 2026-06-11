@@ -193,17 +193,18 @@ async function pickFanatic(m: MatchRow, supabaseAdmin: SupabaseAdmin): Promise<P
 }
 
 // ---------- Quincy Quant ----------
-// Multinomial logistic regression over (rating diff, form diff). Coefficients
-// are fixed constants calibrated from historical international fixtures —
-// rating gap dominates, recent form is a small adjustment, ~26% baseline draw
-// in group stage. World Cup games are at neutral venues, so no home boost.
+// Quincy's picks are trained OFFLINE on a local machine and pushed in via
+// POST /api/public/quant-predictions. If a pushed pick exists we use it.
+// Otherwise we fall back to a built-in multinomial logistic regression over
+// (rating diff, form diff) so the app still works before the script runs.
+// World Cup games are at neutral venues, so no home boost in either path.
 const QUANT_BETA = {
-  intercept: -0.55, // log-odds of a side vs draw at zero feature values (~26% draw rate)
-  rating: 1.25, // per 100-Elo-points of rating diff
-  form: 0.35, // per 1.0 PPG of recent-form diff
+  intercept: -0.55,
+  rating: 1.25,
+  form: 0.35,
 };
 
-function pickQuant(m: MatchRow, history: FormRow[]): PredictionInsert {
+function pickQuantFallback(m: MatchRow, history: FormRow[]): PredictionInsert {
   const rDiff = (rating(m.home_team) - rating(m.away_team)) / 100;
   const fHome = computeForm(history, m.home_team);
   const fAway = computeForm(history, m.away_team);
@@ -229,9 +230,9 @@ function pickQuant(m: MatchRow, history: FormRow[]): PredictionInsert {
   }
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   const reasoning = knockout
-    ? `${m.home_team} ${pct(pHome)} / ${m.away_team} ${pct(pAway)} — β·Δrating ${rDiff.toFixed(2)}, β·Δform ${fDiff.toFixed(2)}`
-    : `${m.home_team} ${pct(pHome)} / Draw ${pct(pDraw)} / ${m.away_team} ${pct(pAway)} — Δrating ${rDiff.toFixed(2)}, Δform ${fDiff.toFixed(2)}`;
-  return { match_id: m.id, predictor: "quant", pick, reasoning, model: "multinomial-logit-v1" };
+    ? `${m.home_team} ${pct(pHome)} / ${m.away_team} ${pct(pAway)} — fallback (no pushed pick yet)`
+    : `${m.home_team} ${pct(pHome)} / Draw ${pct(pDraw)} / ${m.away_team} ${pct(pAway)} — fallback (no pushed pick yet)`;
+  return { match_id: m.id, predictor: "quant", pick, reasoning, model: "fallback-logit-v1" };
 }
 
 async function generateForMatches(matches: MatchRow[]) {
