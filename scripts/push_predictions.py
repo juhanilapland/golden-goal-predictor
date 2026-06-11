@@ -13,7 +13,7 @@ import random
 import requests
 
 # Stable preview URL (won't change if the project is renamed).
-# Swap "-dev" out for the published URL once you publish.
+# Swap "-dev" for the production URL (remove "-dev") once you publish.
 ENDPOINT = (
     "https://project--2140653b-7389-4ba2-a831-55070ace4acf-dev.lovable.app"
     "/api/public/quant-predictions"
