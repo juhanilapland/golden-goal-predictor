@@ -33,6 +33,9 @@ Send a `POST` with this body:
       "match_id": 1,
       "pick": "home",
       "confidence": 0.72,
+      "prob_home": 0.55,
+      "prob_draw": 0.22,
+      "prob_away": 0.23,
       "reasoning": "Home team has +180 Elo advantage and 3-game winning streak"
     }
   ]
@@ -43,7 +46,10 @@ Send a `POST` with this body:
 |-------------|--------|----------|-------|
 | `match_id`  | int    | ✅       | Must match the `id` in Lovable's `matches` table |
 | `pick`      | string | ✅       | `"home"`, `"draw"`, or `"away"` |
-| `confidence`| number | ❌       | 0–1, e.g. `0.62`. Stored inside the reasoning text |
+| `confidence`| number | ❌       | 0–1, probability of the chosen pick |
+| `prob_home` | number | ❌       | 0–1, probability of home win |
+| `prob_draw` | number | ❌       | 0–1, probability of draw |
+| `prob_away` | number | ❌       | 0–1, probability of away win |
 | `reasoning` | string | ❌       | Max 500 chars. Brief model rationale |
 
 - Up to **200 predictions** per request.
@@ -68,10 +74,12 @@ scripts/push_predictions.py
 
 2. **Replace `predict()` with your real model**
    ```python
-   def predict(home: str, away: str) -> tuple[str, float]:
+   def predict(home: str, away: str) -> tuple[str, float, dict[str, float]]:
        # Your sklearn / PyTorch / XGBoost code here
-       # Return (pick, confidence)
-       return "home", 0.68
+       # Return (pick, confidence, probs_dict)
+       probs = {"home": 0.55, "draw": 0.22, "away": 0.23}
+       pick = max(probs, key=probs.get)
+       return pick, probs[pick], probs
    ```
 
 3. **Update `MATCHES`**  
@@ -106,7 +114,7 @@ After pushing, open the app and check Quincy's predictions.
 You can also query the database directly:
 
 ```sql
-SELECT match_id, pick, reasoning, created_at
+SELECT match_id, pick, prob_home, prob_draw, prob_away, reasoning, created_at
 FROM predictions
 WHERE predictor = 'quant'
 ORDER BY created_at DESC;

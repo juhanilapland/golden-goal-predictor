@@ -27,25 +27,41 @@ MATCHES = [
 ]
 
 
-def predict(home: str, away: str) -> tuple[str, float]:
+def predict(home: str, away: str) -> tuple[str, float, dict[str, float]]:
     """Replace with your trained logistic regression.
 
-    Should return (pick, confidence) where pick in {"home", "draw", "away"}.
+    Should return (pick, confidence, probs) where:
+      - pick   in {"home", "draw", "away"}
+      - confidence is the probability of the chosen pick (0-1)
+      - probs  is {"home": p1, "draw": p2, "away": p3} summing to ~1.0
     """
-    pick = random.choice(["home", "draw", "away"])
-    confidence = round(random.uniform(0.35, 0.75), 2)
-    return pick, confidence
+    # Example stub — replace with real model output
+    probs = {
+        "home": round(random.uniform(0.2, 0.6), 4),
+        "draw": round(random.uniform(0.15, 0.35), 4),
+        "away": round(random.uniform(0.2, 0.6), 4),
+    }
+    # Normalise so they sum to exactly 1.0
+    total = sum(probs.values())
+    probs = {k: round(v / total, 4) for k, v in probs.items()}
+
+    pick = max(probs, key=probs.get)  # type: ignore[arg-type]
+    confidence = probs[pick]
+    return pick, confidence, probs
 
 
 def main() -> None:
     predictions = []
     for m in MATCHES:
-        pick, conf = predict(m["home_team"], m["away_team"])
+        pick, conf, probs = predict(m["home_team"], m["away_team"])
         predictions.append(
             {
                 "match_id": m["id"],
                 "pick": pick,
                 "confidence": conf,
+                "prob_home": probs["home"],
+                "prob_draw": probs["draw"],
+                "prob_away": probs["away"],
                 "reasoning": f"local logreg: {m['home_team']} vs {m['away_team']}",
             }
         )
