@@ -15,6 +15,9 @@ const BodySchema = z.object({
         pick: z.enum(["home", "draw", "away"]),
         confidence: z.number().min(0).max(1).optional(),
         reasoning: z.string().max(500).optional(),
+        prob_home: z.number().min(0).max(1).optional(),
+        prob_draw: z.number().min(0).max(1).optional(),
+        prob_away: z.number().min(0).max(1).optional(),
       }),
     )
     .min(1)
