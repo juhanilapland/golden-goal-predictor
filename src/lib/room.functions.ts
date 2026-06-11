@@ -53,21 +53,42 @@ async function callGateway(apiKey: string, prompt: string): Promise<string | nul
         response_format: { type: "json_object" },
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn("[room] gateway HTTP", res.status, await res.text().catch(() => ""));
+      return null;
+    }
     const json = await res.json();
     const content = json.choices?.[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(content);
+    let parsed: { message?: unknown };
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      // Some models return prose instead of JSON; treat the raw content as the message.
+      parsed = { message: content };
+    }
     let msg = String(parsed.message ?? "").trim();
-    if (!msg) return null;
-    // Strip leading "Name:" if model added it.
+    if (!msg) {
+      console.warn("[room] gateway empty message", JSON.stringify(json).slice(0, 300));
+      return null;
+    }
     msg = msg.replace(/^[A-Za-z .'-]{2,30}:\s*/, "");
-    // Cap length
     if (msg.length > 400) msg = msg.slice(0, 400);
     return msg;
-  } catch {
+  } catch (e) {
+    console.warn("[room] gateway threw", (e as Error).message);
     return null;
   }
 }
+
+const FALLBACK_MESSAGES: Record<RivalId, string> = {
+  random: "…dice rolled off the table. Skipping this one.",
+  stats: "Skipping — insufficient signal this round.",
+  magician: "Model timed out. Next match.",
+  adriana: "Madonna mia, my microphone is dead. Next time, amore.",
+  vibes: "the signal is muddled tonight 🌙 i'll return when the cards are clearer",
+  fanatic: "lost connection mid-rant — back next match",
+  quant: "Inference timeout; deferring to the prior. Skipping this turn.",
+};
 
 type TeamForm = { results: string[]; w: number; d: number; l: number; streak: string };
 
@@ -316,17 +337,19 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
     const formBlock = rivalId === "fanatic" ? fanaticFormBlock : "";
     const prompt = buildPrompt(rivalId, persona, matchesWithPreds, runningChat, matchesHeader, standings, formBlock);
     const message = await callGateway(apiKey, prompt);
-    if (message) {
-      const { data: inserted } = await supabaseAdmin
-        .from("chat_messages")
-        .insert({ author: rivalId, body: message })
-        .select("author, body, created_at")
-        .single();
-      if (inserted) {
-        runningChat.push(inserted as ChatRow);
-        if (runningChat.length > 20) runningChat = runningChat.slice(-20);
-        replied++;
-      }
+    const finalMessage = message ?? FALLBACK_MESSAGES[rivalId];
+    const { data: inserted, error: insErr } = await supabaseAdmin
+      .from("chat_messages")
+      .insert({ author: rivalId, body: finalMessage })
+      .select("author, body, created_at")
+      .single();
+    if (insErr) {
+      console.warn("[room] insert failed for", rivalId, insErr.message);
+    }
+    if (inserted) {
+      runningChat.push(inserted as ChatRow);
+      if (runningChat.length > 20) runningChat = runningChat.slice(-20);
+      if (message) replied++;
     }
     // Stagger 1.5–4s before the next rival
     await delay(1500 + Math.random() * 2500);
