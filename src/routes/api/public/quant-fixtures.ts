@@ -26,23 +26,35 @@ export const Route = createFileRoute("/api/public/quant-fixtures")({
       GET: async () => {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-        const { data, error } = await supabaseAdmin
-          .from("matches")
-          .select("id, kickoff, stage, group_name, home_team, away_team, home_code, away_code, status")
-          .eq("stage", "GROUP_STAGE")
-          .neq("status", "FINISHED")
-          .order("kickoff", { ascending: true });
+        const [matchesRes, guessesRes] = await Promise.all([
+          supabaseAdmin
+            .from("matches")
+            .select("id, kickoff, stage, group_name, home_team, away_team, home_code, away_code, status")
+            .eq("stage", "GROUP_STAGE")
+            .neq("status", "FINISHED")
+            .order("kickoff", { ascending: true }),
+          supabaseAdmin.from("guesses").select("match_id"),
+        ]);
 
-        if (error) {
-          return new Response(JSON.stringify({ error: error.message }), {
+        if (matchesRes.error) {
+          return new Response(JSON.stringify({ error: matchesRes.error.message }), {
+            status: 500,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          });
+        }
+        if (guessesRes.error) {
+          return new Response(JSON.stringify({ error: guessesRes.error.message }), {
             status: 500,
             headers: { "Content-Type": "application/json", ...corsHeaders },
           });
         }
 
-        const fixtures = (data ?? []).filter(
-          (m) => !isPlaceholder(m.home_team) && !isPlaceholder(m.away_team),
+        const guessedIds = new Set((guessesRes.data ?? []).map((g) => g.match_id));
+
+        const fixtures = (matchesRes.data ?? []).filter(
+          (m) => guessedIds.has(m.id) && !isPlaceholder(m.home_team) && !isPlaceholder(m.away_team),
         );
+
 
         return new Response(JSON.stringify({ fixtures }), {
           status: 200,
