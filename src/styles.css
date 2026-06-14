@@ -68,6 +68,15 @@
   --border: oklch(0.52 0.13 75 / 35%);
   --input: oklch(0.30 0.02 260);
   --ring: oklch(0.82 0.16 85);
+
+  /* Per-rival accent colors */
+  --rival-random:   oklch(0.68 0.22 25);   /* crimson */
+  --rival-stats:    oklch(0.70 0.13 240);  /* steel blue */
+  --rival-magician: oklch(0.68 0.20 300);  /* violet */
+  --rival-adriana:  oklch(0.70 0.20 40);   /* tomato */
+  --rival-vibes:    oklch(0.78 0.14 170);  /* mint/teal */
+  --rival-fanatic:  oklch(0.75 0.18 60);   /* orange */
+  --rival-quant:    oklch(0.72 0.10 210);  /* slate cyan */
 }
 
 @layer base {
