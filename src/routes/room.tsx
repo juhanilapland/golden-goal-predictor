@@ -54,6 +54,11 @@ function RoomPage() {
   const [loading, setLoading] = useState(true);
   const generateReplies = useServerFn(generateRoomReplies);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const didInitialScroll = useRef(false);
+  // When Juhani sends, we pin the view so the first rival reply stays at the
+  // top of the visible area instead of being yanked away by later replies.
+  const pinAnchorRef = useRef<HTMLDivElement | null>(null);
+  const [pinning, setPinning] = useState(false);
 
   // Load initial messages + subscribe to realtime
   useEffect(() => {
@@ -88,12 +93,34 @@ function RoomPage() {
     };
   }, []);
 
-  // Auto-scroll on new message
+  // Initial scroll: jump to bottom once messages first arrive.
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (didInitialScroll.current) return;
+    if (loading) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    didInitialScroll.current = true;
+  }, [loading, messages.length]);
+
+  // Scroll behavior on new messages:
+  // - If pinning (reading rivals' replies): keep the pin anchor (Juhani's last
+  //   message) near the top of the viewport; don't auto-scroll to bottom.
+  // - Otherwise: stick to bottom only if user is already near the bottom.
+  useEffect(() => {
+    if (!didInitialScroll.current) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    if (pinning && pinAnchorRef.current) {
+      const anchorTop = pinAnchorRef.current.offsetTop;
+      el.scrollTop = anchorTop - 8;
+      return;
     }
-  }, [messages.length]);
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distFromBottom < 120) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages.length, pinning]);
 
   // Compute who hasn't replied to the last juhani message yet
   const pendingRivals = useMemo<RivalId[]>(() => {
