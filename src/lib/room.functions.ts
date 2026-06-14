@@ -140,6 +140,61 @@ function formatFormBlock(form: Map<string, TeamForm>): string {
   return `\nFORM CONTEXT (last 5, oldest → newest):\n${lines.join("\n")}\n`;
 }
 
+type UpcomingFixture = {
+  id: number;
+  stage: string;
+  home_team: string;
+  away_team: string;
+  kickoff: string;
+  predictions: { predictor: string; pick: Pick; reasoning: string | null }[];
+};
+
+type JuhaniIntent =
+  | { kind: "match_question"; raw: string; fixtures: UpcomingFixture[] }
+  | { kind: "personal_result"; raw: string }
+  | { kind: "small_talk"; raw: string };
+
+function classifyJuhani(text: string, upcoming: UpcomingFixture[]): JuhaniIntent {
+  const lower = text.toLowerCase();
+  const matched: UpcomingFixture[] = [];
+  for (const f of upcoming) {
+    const h = f.home_team.toLowerCase();
+    const a = f.away_team.toLowerCase();
+    // crude but effective: full team name or first significant word
+    const hWord = h.split(/[\s-]+/)[0];
+    const aWord = a.split(/[\s-]+/)[0];
+    if (
+      lower.includes(h) ||
+      lower.includes(a) ||
+      (hWord.length >= 4 && lower.includes(hWord)) ||
+      (aWord.length >= 4 && lower.includes(aWord))
+    ) {
+      matched.push(f);
+    }
+  }
+  if (matched.length > 0) return { kind: "match_question", raw: text, fixtures: matched };
+  if (/\b(got|miss(ed)?|correct|wrong|right|nailed|guessed)\b|🙂|😢|😭|🎉|💔|😞|😊/i.test(text)) {
+    return { kind: "personal_result", raw: text };
+  }
+  return { kind: "small_talk", raw: text };
+}
+
+function formatJuhaniBlock(intent: JuhaniIntent, rivalId: RivalId): string {
+  if (intent.kind === "match_question") {
+    const lines = intent.fixtures.map((f) => {
+      const mine = f.predictions.find((p) => p.predictor === rivalId);
+      const pickLabel = mine ? `${mine.pick === "home" ? f.home_team : mine.pick === "away" ? f.away_team : "DRAW"}` : "no pick yet";
+      const reason = mine?.reasoning ? ` (your reasoning: "${mine.reasoning}")` : "";
+      return `- ${f.home_team} vs ${f.away_team} — YOUR PICK: ${pickLabel}${reason}`;
+    });
+    return `\nJUHANI JUST ASKED ABOUT THESE UPCOMING MATCHES:\n${lines.join("\n")}\n\nRULE: Your FIRST sentence MUST name the match and give your pick in character. No leaderboard talk, no Brier-score lecture.\n`;
+  }
+  if (intent.kind === "personal_result") {
+    return `\nJUHANI SHARED A PERSONAL RESULT/FEELING: "${intent.raw}"\n\nRULE: Your FIRST sentence MUST react TO JUHANI (acknowledge, tease, console, hype — in character). Address him by name. Do NOT pivot to your own stats.\n`;
+  }
+  return `\nJUHANI IS MAKING SMALL TALK: "${intent.raw}"\n\nRULE: React to him directly in character. Keep it light. Do not lecture about Brier score or rank unless he brought it up.\n`;
+}
+
 function buildPrompt(
   rivalId: RivalId,
   persona: string,
@@ -148,6 +203,8 @@ function buildPrompt(
   matchesHeader: string,
   standings: Standing[],
   formBlock: string,
+  juhaniBlock: string,
+  myRecentMessages: string[],
 ): string {
   const myPicks = rivalMatches.map((m) => {
     const mine = m.predictions.find((p) => p.predictor === rivalId);
@@ -161,38 +218,33 @@ function buildPrompt(
     .map((c) => `${authorDisplay(c.author)}: ${c.body}`)
     .join("\n");
 
-  const board = standings
-    .map(
-      (s) =>
-        `${s.rank}. ${RIVAL_NAMES[s.rivalId]}${s.rivalId === rivalId ? " (you)" : ""} — ${s.points} pts, ${s.correct}/${s.total} correct, last 5: ${s.streak || "—"}`,
-    )
-    .join("\n");
-
   const me = standings.find((s) => s.rivalId === rivalId);
+  const myRank = me ? `${me.rank}/${standings.length}` : "—";
+  const leaderName = standings[0] ? RIVAL_NAMES[standings[0].rivalId] : "—";
+  const board = `You're ${myRank} (${me?.points ?? 0} pts, ${me?.correct ?? 0}/${me?.total ?? 0}). Leader: ${leaderName} (${standings[0]?.points ?? 0} pts). Your last 5: ${me?.streak || "—"}.`;
+
   const loyalty = RIVAL_LOYALTIES[rivalId];
   const loyaltyLine = `You love: ${loyalty.loves.join(", ")}. You can't stand: ${loyalty.hates.join(", ")}. (${loyalty.note}) — let this bias show when those teams come up, but never break character to explain it.`;
 
-  const standingLine = me
-    ? `You are currently RANK ${me.rank}/${standings.length} with ${me.points} pts. Your last 5 picks: ${me.streak || "—"}. React in character to this position (gloat if 1st, deflect if last, panic on a losing streak, smug on a winning one).`
+  const antiRep = myRecentMessages.length
+    ? `\nYOUR OWN LAST MESSAGES (do NOT reuse any opener, phrase, or sentence structure from these — if you can't say something fresh, change the angle entirely):\n${myRecentMessages.map((m) => `- "${m}"`).join("\n")}\n`
     : "";
 
   return `${persona}
 
 ${loyaltyLine}
 
-Current leaderboard (most points first):
-${board || "(no scoring yet)"}
-
-${standingLine}
+Your standing (one line, only mention if Juhani brought it up): ${board}
 
 ${matchesHeader}
 ${myPicks.join("\n") || "(no recent results yet)"}
-${formBlock}
+${formBlock}${juhaniBlock}${antiRep}
 Current chat in the game room (oldest first):
 ${transcript || "(empty)"}
 
-Now write your NEXT message in this chat. Stay fully in character. Max 2 short sentences. React to what was just said and/or the results above. Do NOT prefix with your name. Respond as JSON only: {"message": "..."}`;
+Now write your NEXT message in this chat. Stay fully in character. Max 2 short sentences. PRIORITY: react to Juhani's last message per the RULE above. Do NOT prefix with your name. Mention at most ONE other rival by name (or none). Respond as JSON only: {"message": "..."}`;
 }
+
 
 export const generateRoomReplies = createServerFn({ method: "POST" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -332,10 +384,61 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
   const teamForm = computeTeamForm(allFinished ?? [], matchesWithPreds);
   const fanaticFormBlock = formatFormBlock(teamForm);
 
-  for (const rivalId of todo) {
+  // Pull next upcoming real-team fixtures (any stage) for Juhani-question context.
+  const PLACEHOLDER_RX = /^(TBD|Winner|Runner-up)/i;
+  const { data: upcomingRaw } = await supabaseAdmin
+    .from("matches")
+    .select("id, stage, home_team, away_team, kickoff, status")
+    .neq("status", "FINISHED")
+    .order("kickoff", { ascending: true })
+    .limit(40);
+  const upcomingFiltered = (upcomingRaw ?? [])
+    .filter((m) => !PLACEHOLDER_RX.test(m.home_team) && !PLACEHOLDER_RX.test(m.away_team))
+    .slice(0, 12);
+  const upcomingIds = upcomingFiltered.map((m) => m.id);
+  const { data: upcomingPredsRows } = upcomingIds.length
+    ? await supabaseAdmin
+        .from("predictions")
+        .select("match_id, predictor, pick, reasoning")
+        .in("match_id", upcomingIds)
+    : { data: [] as { match_id: number; predictor: string; pick: string; reasoning: string | null }[] };
+  const upcomingFixtures: UpcomingFixture[] = upcomingFiltered.map((m) => ({
+    id: m.id,
+    stage: m.stage,
+    home_team: m.home_team,
+    away_team: m.away_team,
+    kickoff: m.kickoff,
+    predictions: (upcomingPredsRows ?? [])
+      .filter((p) => p.match_id === m.id)
+      .map((p) => ({ predictor: p.predictor, pick: p.pick as Pick, reasoning: p.reasoning })),
+  }));
+
+  const juhaniText = chat[lastJuhaniIdx].body;
+  const intent = classifyJuhani(juhaniText, upcomingFixtures);
+
+  // Shuffle reply order so the room doesn't feel scripted.
+  const shuffledTodo = [...todo].sort(() => Math.random() - 0.5);
+
+  for (const rivalId of shuffledTodo) {
     const persona = personaOverrides.get(rivalId) ?? RIVAL_PERSONAS[rivalId];
     const formBlock = rivalId === "fanatic" ? fanaticFormBlock : "";
-    const prompt = buildPrompt(rivalId, persona, matchesWithPreds, runningChat, matchesHeader, standings, formBlock);
+    const juhaniBlock = formatJuhaniBlock(intent, rivalId);
+    // Last 3 messages this rival authored, oldest first.
+    const myRecentMessages = runningChat
+      .filter((c) => c.author === rivalId)
+      .slice(-3)
+      .map((c) => c.body);
+    const prompt = buildPrompt(
+      rivalId,
+      persona,
+      matchesWithPreds,
+      runningChat,
+      matchesHeader,
+      standings,
+      formBlock,
+      juhaniBlock,
+      myRecentMessages,
+    );
     const message = await callGateway(apiKey, prompt);
     const finalMessage = message ?? FALLBACK_MESSAGES[rivalId];
     const { data: inserted, error: insErr } = await supabaseAdmin
@@ -357,3 +460,4 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
 
   return { replied };
 });
+
