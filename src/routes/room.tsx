@@ -200,7 +200,13 @@ function RoomPage() {
             No messages yet. Say something — like <i>"That surely was an odd result."</i>
           </div>
         ) : (
-          messages.map((m) => <MessageBubble key={m.id} message={m} />)
+          messages.map((m, i) => (
+            <MessageBubble
+              key={m.id}
+              message={m}
+              anchorRef={i === lastJuhaniIdx ? pinAnchorRef : undefined}
+            />
+          ))
         )}
 
         {rivalsReplying && pendingRivals.length > 0 && (
