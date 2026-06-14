@@ -384,10 +384,61 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
   const teamForm = computeTeamForm(allFinished ?? [], matchesWithPreds);
   const fanaticFormBlock = formatFormBlock(teamForm);
 
-  for (const rivalId of todo) {
+  // Pull next upcoming real-team fixtures (any stage) for Juhani-question context.
+  const PLACEHOLDER_RX = /^(TBD|Winner|Runner-up)/i;
+  const { data: upcomingRaw } = await supabaseAdmin
+    .from("matches")
+    .select("id, stage, home_team, away_team, kickoff, status")
+    .neq("status", "FINISHED")
+    .order("kickoff", { ascending: true })
+    .limit(40);
+  const upcomingFiltered = (upcomingRaw ?? [])
+    .filter((m) => !PLACEHOLDER_RX.test(m.home_team) && !PLACEHOLDER_RX.test(m.away_team))
+    .slice(0, 12);
+  const upcomingIds = upcomingFiltered.map((m) => m.id);
+  const { data: upcomingPredsRows } = upcomingIds.length
+    ? await supabaseAdmin
+        .from("predictions")
+        .select("match_id, predictor, pick, reasoning")
+        .in("match_id", upcomingIds)
+    : { data: [] as { match_id: number; predictor: string; pick: string; reasoning: string | null }[] };
+  const upcomingFixtures: UpcomingFixture[] = upcomingFiltered.map((m) => ({
+    id: m.id,
+    stage: m.stage,
+    home_team: m.home_team,
+    away_team: m.away_team,
+    kickoff: m.kickoff,
+    predictions: (upcomingPredsRows ?? [])
+      .filter((p) => p.match_id === m.id)
+      .map((p) => ({ predictor: p.predictor, pick: p.pick as Pick, reasoning: p.reasoning })),
+  }));
+
+  const juhaniText = chat[lastJuhaniIdx].body;
+  const intent = classifyJuhani(juhaniText, upcomingFixtures);
+
+  // Shuffle reply order so the room doesn't feel scripted.
+  const shuffledTodo = [...todo].sort(() => Math.random() - 0.5);
+
+  for (const rivalId of shuffledTodo) {
     const persona = personaOverrides.get(rivalId) ?? RIVAL_PERSONAS[rivalId];
     const formBlock = rivalId === "fanatic" ? fanaticFormBlock : "";
-    const prompt = buildPrompt(rivalId, persona, matchesWithPreds, runningChat, matchesHeader, standings, formBlock);
+    const juhaniBlock = formatJuhaniBlock(intent, rivalId);
+    // Last 3 messages this rival authored, oldest first.
+    const myRecentMessages = runningChat
+      .filter((c) => c.author === rivalId)
+      .slice(-3)
+      .map((c) => c.body);
+    const prompt = buildPrompt(
+      rivalId,
+      persona,
+      matchesWithPreds,
+      runningChat,
+      matchesHeader,
+      standings,
+      formBlock,
+      juhaniBlock,
+      myRecentMessages,
+    );
     const message = await callGateway(apiKey, prompt);
     const finalMessage = message ?? FALLBACK_MESSAGES[rivalId];
     const { data: inserted, error: insErr } = await supabaseAdmin
@@ -409,3 +460,4 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
 
   return { replied };
 });
+
