@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { generateRoomReplies } from "@/lib/room.functions";
-import { RIVAL_NAMES, RIVAL_ORDER, type RivalId } from "@/lib/predictors/personas";
+import { RIVAL_NAMES, RIVAL_ORDER, RIVAL_COLORS, type RivalId } from "@/lib/predictors/personas";
 import { toast } from "sonner";
 import avatarJuhani from "@/assets/avatar-juhani.jpg";
 import avatarRandom from "@/assets/avatar-random.jpg";
