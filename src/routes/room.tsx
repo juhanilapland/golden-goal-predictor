@@ -250,22 +250,33 @@ function RoomPage() {
   );
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({
+  message,
+  anchorRef,
+}: {
+  message: ChatMessage;
+  anchorRef?: React.RefObject<HTMLDivElement | null>;
+}) {
   const isMe = message.author === "juhani";
   const name = NAMES[message.author] ?? message.author;
   const avatar = AVATARS[message.author];
+  const accent = RIVAL_COLORS[message.author] ?? "var(--gold-deep)";
 
   return (
-    <div className={`flex gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+    <div ref={anchorRef} className={`flex gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
       {avatar && (
         <img
           src={avatar}
           alt={name}
-          className="w-8 h-8 rounded-full object-cover ring-1 ring-[--gold-deep] shrink-0"
+          className="w-8 h-8 rounded-full object-cover shrink-0"
+          style={{ boxShadow: `0 0 0 2px ${accent}` }}
         />
       )}
       <div className={`max-w-[75%] ${isMe ? "items-end" : "items-start"} flex flex-col`}>
-        <span className="text-[10px] uppercase tracking-widest text-[--gold-dim] mb-0.5 px-1">
+        <span
+          className="text-[10px] uppercase tracking-widest mb-0.5 px-1"
+          style={{ color: accent }}
+        >
           {name}
         </span>
         <div
@@ -275,6 +286,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               ? "bg-[--gold] text-[--primary-foreground]"
               : "bg-muted text-foreground border border-[--gold-deep]/40",
           ].join(" ")}
+          style={isMe ? undefined : { borderLeft: `2px solid ${accent}` }}
         >
           {message.body}
         </div>
