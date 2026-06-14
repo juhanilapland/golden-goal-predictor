@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { generateRoomReplies } from "@/lib/room.functions";
-import { RIVAL_NAMES, RIVAL_ORDER, type RivalId } from "@/lib/predictors/personas";
+import { RIVAL_NAMES, RIVAL_ORDER, RIVAL_COLORS, type RivalId } from "@/lib/predictors/personas";
 import { toast } from "sonner";
 import avatarJuhani from "@/assets/avatar-juhani.jpg";
 import avatarRandom from "@/assets/avatar-random.jpg";
@@ -54,6 +54,11 @@ function RoomPage() {
   const [loading, setLoading] = useState(true);
   const generateReplies = useServerFn(generateRoomReplies);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const didInitialScroll = useRef(false);
+  // When Juhani sends, we pin the view so the first rival reply stays at the
+  // top of the visible area instead of being yanked away by later replies.
+  const pinAnchorRef = useRef<HTMLDivElement | null>(null);
+  const [pinning, setPinning] = useState(false);
 
   // Load initial messages + subscribe to realtime
   useEffect(() => {
@@ -88,35 +93,82 @@ function RoomPage() {
     };
   }, []);
 
-  // Auto-scroll on new message
+  // Initial scroll: jump to bottom once messages first arrive.
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (didInitialScroll.current) return;
+    if (loading) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    didInitialScroll.current = true;
+  }, [loading, messages.length]);
+
+  // Scroll behavior on new messages:
+  // - If pinning (reading rivals' replies): keep the pin anchor (Juhani's last
+  //   message) near the top of the viewport; don't auto-scroll to bottom.
+  // - Otherwise: stick to bottom only if user is already near the bottom.
+  useEffect(() => {
+    if (!didInitialScroll.current) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    if (pinning && pinAnchorRef.current) {
+      const anchorTop = pinAnchorRef.current.offsetTop;
+      el.scrollTop = anchorTop - 8;
+      return;
     }
-  }, [messages.length]);
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distFromBottom < 120) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages.length, pinning]);
 
   // Compute who hasn't replied to the last juhani message yet
+  const lastJuhaniIdx = useMemo(
+    () => [...messages].map((m) => m.author).lastIndexOf("juhani"),
+    [messages],
+  );
   const pendingRivals = useMemo<RivalId[]>(() => {
-    const lastJuhaniIdx = [...messages].map((m) => m.author).lastIndexOf("juhani");
     if (lastJuhaniIdx === -1) return [];
     const after = messages.slice(lastJuhaniIdx + 1);
     const replied = new Set(after.map((m) => m.author));
     return RIVAL_ORDER.filter((r) => !replied.has(r));
-  }, [messages]);
+  }, [messages, lastJuhaniIdx]);
 
   const rivalsReplying = sending || pendingRivals.length > 0;
+
+  // Exit pinning when every rival has replied.
+  useEffect(() => {
+    if (pinning && !sending && pendingRivals.length === 0) {
+      setPinning(false);
+    }
+  }, [pinning, sending, pendingRivals.length]);
+
+  // Cancel pinning if the user manually scrolls.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !pinning) return;
+    const cancel = () => setPinning(false);
+    el.addEventListener("wheel", cancel, { passive: true });
+    el.addEventListener("touchmove", cancel, { passive: true });
+    return () => {
+      el.removeEventListener("wheel", cancel);
+      el.removeEventListener("touchmove", cancel);
+    };
+  }, [pinning]);
 
   const handleSend = useCallback(async () => {
     const body = input.trim();
     if (!body || sending || pendingRivals.length > 0) return;
     setSending(true);
     setInput("");
+    setPinning(true);
     const { error } = await supabase
       .from("chat_messages")
       .insert({ author: "juhani", body });
     if (error) {
       toast.error("Could not send: " + error.message);
       setSending(false);
+      setPinning(false);
       return;
     }
     // Fire the rival replies; they trickle in via realtime.
@@ -148,7 +200,13 @@ function RoomPage() {
             No messages yet. Say something — like <i>"That surely was an odd result."</i>
           </div>
         ) : (
-          messages.map((m) => <MessageBubble key={m.id} message={m} />)
+          messages.map((m, i) => (
+            <MessageBubble
+              key={m.id}
+              message={m}
+              anchorRef={i === lastJuhaniIdx ? pinAnchorRef : undefined}
+            />
+          ))
         )}
 
         {rivalsReplying && pendingRivals.length > 0 && (
@@ -192,22 +250,33 @@ function RoomPage() {
   );
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({
+  message,
+  anchorRef,
+}: {
+  message: ChatMessage;
+  anchorRef?: React.RefObject<HTMLDivElement | null>;
+}) {
   const isMe = message.author === "juhani";
   const name = NAMES[message.author] ?? message.author;
   const avatar = AVATARS[message.author];
+  const accent = RIVAL_COLORS[message.author] ?? "var(--gold-deep)";
 
   return (
-    <div className={`flex gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+    <div ref={anchorRef} className={`flex gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
       {avatar && (
         <img
           src={avatar}
           alt={name}
-          className="w-8 h-8 rounded-full object-cover ring-1 ring-[--gold-deep] shrink-0"
+          className="w-8 h-8 rounded-full object-cover shrink-0"
+          style={{ boxShadow: `0 0 0 2px ${accent}` }}
         />
       )}
       <div className={`max-w-[75%] ${isMe ? "items-end" : "items-start"} flex flex-col`}>
-        <span className="text-[10px] uppercase tracking-widest text-[--gold-dim] mb-0.5 px-1">
+        <span
+          className="text-[10px] uppercase tracking-widest mb-0.5 px-1"
+          style={{ color: accent }}
+        >
           {name}
         </span>
         <div
@@ -217,6 +286,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               ? "bg-[--gold] text-[--primary-foreground]"
               : "bg-muted text-foreground border border-[--gold-deep]/40",
           ].join(" ")}
+          style={isMe ? undefined : { borderLeft: `2px solid ${accent}` }}
         >
           {message.body}
         </div>
