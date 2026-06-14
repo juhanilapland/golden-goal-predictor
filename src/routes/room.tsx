@@ -123,27 +123,52 @@ function RoomPage() {
   }, [messages.length, pinning]);
 
   // Compute who hasn't replied to the last juhani message yet
+  const lastJuhaniIdx = useMemo(
+    () => [...messages].map((m) => m.author).lastIndexOf("juhani"),
+    [messages],
+  );
   const pendingRivals = useMemo<RivalId[]>(() => {
-    const lastJuhaniIdx = [...messages].map((m) => m.author).lastIndexOf("juhani");
     if (lastJuhaniIdx === -1) return [];
     const after = messages.slice(lastJuhaniIdx + 1);
     const replied = new Set(after.map((m) => m.author));
     return RIVAL_ORDER.filter((r) => !replied.has(r));
-  }, [messages]);
+  }, [messages, lastJuhaniIdx]);
 
   const rivalsReplying = sending || pendingRivals.length > 0;
+
+  // Exit pinning when every rival has replied.
+  useEffect(() => {
+    if (pinning && !sending && pendingRivals.length === 0) {
+      setPinning(false);
+    }
+  }, [pinning, sending, pendingRivals.length]);
+
+  // Cancel pinning if the user manually scrolls.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !pinning) return;
+    const cancel = () => setPinning(false);
+    el.addEventListener("wheel", cancel, { passive: true });
+    el.addEventListener("touchmove", cancel, { passive: true });
+    return () => {
+      el.removeEventListener("wheel", cancel);
+      el.removeEventListener("touchmove", cancel);
+    };
+  }, [pinning]);
 
   const handleSend = useCallback(async () => {
     const body = input.trim();
     if (!body || sending || pendingRivals.length > 0) return;
     setSending(true);
     setInput("");
+    setPinning(true);
     const { error } = await supabase
       .from("chat_messages")
       .insert({ author: "juhani", body });
     if (error) {
       toast.error("Could not send: " + error.message);
       setSending(false);
+      setPinning(false);
       return;
     }
     // Fire the rival replies; they trickle in via realtime.
