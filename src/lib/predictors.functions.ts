@@ -186,7 +186,7 @@ async function pickFanatic(m: MatchRow, supabaseAdmin: SupabaseAdmin): Promise<P
     pick = opts[Math.floor(Math.random() * opts.length)];
     reasoning =
       winsH === 0 && winsA === 0
-        ? `No prior games — coin flip → ${pick}.`
+        ? `No prior wins — coin flip → ${pick}.`
         : `Both ${winsH}W — tie, rolled ${pick}.`;
   }
   return { match_id: m.id, predictor: "fanatic", pick, reasoning, model: null };
