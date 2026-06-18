@@ -153,41 +153,54 @@ type SupabaseAdmin = typeof import("@/integrations/supabase/client.server")["sup
 async function pickFanatic(m: MatchRow, supabaseAdmin: SupabaseAdmin): Promise<PredictionInsert> {
   const { data: prior } = await supabaseAdmin
     .from("matches")
-    .select("home_team, away_team, outcome")
+    .select("home_team, away_team, outcome, home_score, away_score")
     .eq("status", "FINISHED")
     .lt("kickoff", m.kickoff)
     .or(
       `home_team.in.("${m.home_team}","${m.away_team}"),away_team.in.("${m.home_team}","${m.away_team}")`,
     );
 
-  let winsH = 0;
-  let winsA = 0;
-  for (const row of prior ?? []) {
-    if (row.outcome === "home") {
-      if (row.home_team === m.home_team) winsH++;
-      else if (row.home_team === m.away_team) winsA++;
-    } else if (row.outcome === "away") {
-      if (row.away_team === m.home_team) winsH++;
-      else if (row.away_team === m.away_team) winsA++;
+  const stats = (team: string) => {
+    let pts = 0;
+    let gd = 0;
+    let games = 0;
+    for (const row of prior ?? []) {
+      const isHome = row.home_team === team;
+      const isAway = row.away_team === team;
+      if (!isHome && !isAway) continue;
+      games++;
+      const gf = (isHome ? row.home_score : row.away_score) ?? 0;
+      const ga = (isHome ? row.away_score : row.home_score) ?? 0;
+      gd += gf - ga;
+      if (row.outcome === "draw") pts += 0.5;
+      else if ((row.outcome === "home" && isHome) || (row.outcome === "away" && isAway)) pts += 1;
     }
-  }
+    return { pts, gd, games };
+  };
 
+  const H = stats(m.home_team);
+  const A = stats(m.away_team);
+  const fmtPts = (n: number) => (Number.isInteger(n) ? `${n}pt${n === 1 ? "" : "s"}` : `${n}pts`);
+  const fmtGd = (n: number) => (n > 0 ? `+${n}` : `${n}`);
   const knockout = isKnockout(m.stage);
+
   let pick: Pick;
   let reasoning: string;
-  if (winsH > winsA) {
-    pick = "home";
-    reasoning = `${m.home_team} ${winsH}W · ${m.away_team} ${winsA}W — backing ${m.home_team}.`;
-  } else if (winsA > winsH) {
-    pick = "away";
-    reasoning = `${m.home_team} ${winsH}W · ${m.away_team} ${winsA}W — backing ${m.away_team}.`;
+  if (H.pts !== A.pts) {
+    pick = H.pts > A.pts ? "home" : "away";
+    const winner = pick === "home" ? m.home_team : m.away_team;
+    reasoning = `${m.home_team} ${fmtPts(H.pts)} (${fmtGd(H.gd)} GD) · ${m.away_team} ${fmtPts(A.pts)} (${fmtGd(A.gd)} GD) — backing ${winner}.`;
+  } else if (H.gd !== A.gd) {
+    pick = H.gd > A.gd ? "home" : "away";
+    const winner = pick === "home" ? m.home_team : m.away_team;
+    reasoning = `Tied on ${fmtPts(H.pts)} — ${m.home_team} ${fmtGd(H.gd)} GD vs ${m.away_team} ${fmtGd(A.gd)} GD — backing ${winner}.`;
   } else {
     const opts: Pick[] = knockout ? ["home", "away"] : ["home", "draw", "away"];
     pick = opts[Math.floor(Math.random() * opts.length)];
     reasoning =
-      winsH === 0 && winsA === 0
-        ? `No prior wins — coin flip → ${pick}.`
-        : `Both ${winsH}W — tie, rolled ${pick}.`;
+      H.games === 0 && A.games === 0
+        ? `No prior games — coin flip → ${pick}.`
+        : `Dead level (${fmtPts(H.pts)}, ${fmtGd(H.gd)} GD each) — rolled ${pick}.`;
   }
   return { match_id: m.id, predictor: "fanatic", pick, reasoning, model: null };
 }

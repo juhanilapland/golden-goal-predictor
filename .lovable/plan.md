@@ -1,45 +1,35 @@
-## Goal
-Three focused UI tweaks to `/room`. No business logic, no backend changes.
+## Update Freddy Fanatic's prediction logic
 
-## 1. Open the room scrolled to the bottom
-On first load (after messages arrive), jump the scroll container straight to the bottom — no animation, no flicker. Track a `hasDoneInitialScroll` ref so this only happens once per mount.
+Currently Freddy only counts wins. We'll upgrade him to a points + goal-difference tiebreaker.
 
-## 2. Keep the first new reply pinned at the top while rivals stream in
-Today, every realtime insert auto-scrolls to the bottom, so each new rival reply yanks the view down and Juhani loses the first answer. New behavior:
+### New logic (in `src/lib/predictors.functions.ts` → `pickFanatic`)
 
-- When Juhani sends a message: scroll to the bottom once so his own message is visible, then enter a "reading replies" mode.
-- While in "reading replies" mode (i.e. `pendingRivals.length > 0` OR a rival reply arrived in the last few seconds after Juhani's send), do NOT auto-scroll on new inserts. The first rival reply lands just under Juhani's message and stays put as later replies append below.
-- Exit "reading replies" mode when all 7 rivals have replied (or a short idle timeout passes). After that, fall back to the existing "stick to bottom if user is already near bottom" behavior for future activity.
-- Keep the existing realtime subscription untouched.
+For each team, walk their prior finished matches (already fetched) and accumulate:
+- **Points**: win = 1, draw = 0.5, loss = 0
+- **Goal difference**: sum of `(team's goals scored) − (opponent's goals scored)` across those matches
 
-Edge case: if the user manually scrolls during streaming, respect their position (don't fight them).
+Decision:
+1. If points differ → pick the team with more points.
+2. If points tie → pick the team with better goal difference.
+3. If both tie → group stage may pick `draw`; knockout coin-flips between home/away (current fallback).
 
-## 3. Unique color per guesser
-Add a stable accent color for each of the 8 chat participants (Juhani + 7 rivals). Used for:
+### Reasoning strings (shown to user)
 
-- The avatar ring (replaces the current uniform `--gold-deep` ring).
-- The author name label above each bubble.
-- A 2px left border accent on rival bubbles (Juhani keeps his filled gold bubble as the "me" treatment).
+- Points winner: `"{Home} 1.5pts (+2 GD) · {Away} 1pt (−1 GD) — backing {Home}."`
+- GD tiebreaker: `"Tied on 1pt — {Home} +2 GD vs {Away} −1 GD — backing {Home}."`
+- Full tie with prior games: `"Dead level (1pt, 0 GD each) — rolled {pick}."`
+- No prior games at all: `"No prior games — coin flip → {pick}."` (restore this wording — now accurate, since "no points" can mean draws-only)
 
-Palette (distinct hues, all readable on the dark card background):
+### Data needed
 
-| id       | name              | hue        |
-|----------|-------------------|------------|
-| juhani   | Juhani            | gold (existing) |
-| random   | Richard Random    | crimson    |
-| stats    | Sara Statistics   | steel blue |
-| magician | Matt Magician     | violet     |
-| adriana  | Adriana Idriano   | tomato red |
-| vibes    | Valerie Vibes     | mint/teal  |
-| fanatic  | Freddy Fanatic    | orange     |
-| quant    | Quincy Quant      | slate cyan |
+The existing query already pulls `home_team, away_team, outcome` from `matches`. We need to add `home_score, away_score` to the SELECT so GD can be computed.
 
-Colors are added as CSS custom properties in `src/styles.css` (e.g. `--rival-random`, `--rival-stats`, …) using `oklch` to match the existing palette style. A small `RIVAL_COLORS` map in `src/lib/predictors/personas.ts` maps each id to its CSS var name so components can read it. Juhani uses the existing `--gold`.
+### Backfill existing predictions
 
-## Files touched
-- `src/routes/room.tsx` — scroll logic (1 + 2), apply per-author color to ring/label/left-accent.
-- `src/styles.css` — add 7 `--rival-*` color tokens.
-- `src/lib/predictors/personas.ts` — add `RIVAL_COLORS` map.
+After the code change, run a one-off regeneration of Freddy's picks for matches that haven't kicked off yet so the room reflects the new logic. (Past/locked matches stay as-is — they're historical record.)
 
-## Not in scope
-Roster strip, typing-queue avatars, unlock composer, hovercards, fixture cards, reactions, header upgrade — all deferred from the earlier UI plan. This change is strictly the three items requested.
+### Out of scope
+
+- No changes to other predictors.
+- No schema changes.
+- No UI changes.
