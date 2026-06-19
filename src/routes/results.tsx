@@ -485,26 +485,29 @@ function MatchCard({
       </div>
 
       {/* Pick grid */}
-      <div className="grid grid-cols-6 gap-1.5 md:gap-2">
-        {predictors.map((pr) => {
-          const pick =
-            pr.id === "juhani" ? guesses[m.id] : predIndex[m.id]?.[pr.id]?.pick;
-          const reasoning =
-            pr.id === "juhani" ? null : predIndex[m.id]?.[pr.id]?.reasoning ?? null;
-          const cellKey = `${m.id}:${pr.id}`;
-          const isOpen = openCell === cellKey;
-          let cellClass = "pick-cell-empty";
-          if (pick && finished) cellClass = pick === actual ? "pick-cell-correct" : "pick-cell-wrong";
-          else if (pick) cellClass = "pick-cell-pending";
+      <div className="min-w-0">
+        <div className="grid grid-cols-6 gap-1.5 md:gap-2">
+          {predictors.map((pr) => {
+            const pick =
+              pr.id === "juhani" ? guesses[m.id] : predIndex[m.id]?.[pr.id]?.pick;
+            const reasoning =
+              pr.id === "juhani" ? null : predIndex[m.id]?.[pr.id]?.reasoning ?? null;
+            const cellKey = `${m.id}:${pr.id}`;
+            const isOpen = openCell === cellKey;
+            let cellClass = "pick-cell-empty";
+            if (pick && finished) cellClass = pick === actual ? "pick-cell-correct" : "pick-cell-wrong";
+            else if (pick) cellClass = "pick-cell-pending";
 
-          return (
-            <div key={pr.id} className="relative">
+            return (
               <button
+                key={pr.id}
                 onClick={(e) => {
                   e.stopPropagation();
                   setOpenCell(isOpen ? null : cellKey);
                 }}
-                className={`w-full flex flex-col items-center gap-1 p-1.5 rounded-md border transition hover:scale-[1.03] ${cellClass}`}
+                className={`w-full flex flex-col items-center gap-1 p-1.5 rounded-md border transition hover:scale-[1.03] ${cellClass} ${
+                  isOpen ? "ring-2 ring-[--gold]" : ""
+                }`}
                 title={`${pr.name}: ${pick ? pick.toUpperCase() : "no pick"}${
                   reasoning ? ` — ${reasoning}` : ""
                 }`}
@@ -521,35 +524,51 @@ function MatchCard({
                   {pick ? pickShort[pick] : "—"}
                 </span>
               </button>
-              {isOpen && (
-                <div
-                  className="absolute z-20 top-full mt-1 right-0 w-56 gold-border bg-card rounded-md p-3 text-left shadow-xl"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <img
-                      src={AVATARS[pr.id]}
-                      alt=""
-                      className="w-6 h-6 rounded-full object-cover ring-1 ring-[--gold-deep]"
-                    />
-                    <span className="font-display text-sm">{pr.name}</span>
-                  </div>
-                  <div className="text-[11px] text-[--gold-dim] uppercase tracking-widest mb-1">
-                    Pick: {pick ? pick.toUpperCase() : "—"}
-                    {finished && pick && (
-                      <span className={`ml-2 ${pick === actual ? "text-[--gold]" : "text-destructive"}`}>
-                        {pick === actual ? "✓" : "✗"}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground italic">
-                    {reasoning ?? (pr.id === "juhani" ? "Your pick." : "No reasoning recorded.")}
-                  </div>
-                </div>
-              )}
+            );
+          })}
+        </div>
+
+        {(() => {
+          const openPr = predictors.find((pr) => openCell === `${m.id}:${pr.id}`);
+          if (!openPr) return null;
+          const pick =
+            openPr.id === "juhani" ? guesses[m.id] : predIndex[m.id]?.[openPr.id]?.pick;
+          const reasoning =
+            openPr.id === "juhani" ? null : predIndex[m.id]?.[openPr.id]?.reasoning ?? null;
+          return (
+            <div
+              className="mt-2 gold-border bg-card rounded-md p-3 text-left shadow-xl relative"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setOpenCell(null)}
+                className="absolute top-2 right-2 text-[--gold-dim] hover:text-[--gold] text-xs"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+              <div className="flex items-center gap-2 mb-1 pr-6">
+                <img
+                  src={AVATARS[openPr.id]}
+                  alt=""
+                  className="w-6 h-6 rounded-full object-cover ring-1 ring-[--gold-deep] shrink-0"
+                />
+                <span className="font-display text-sm truncate">{openPr.name}</span>
+              </div>
+              <div className="text-[11px] text-[--gold-dim] uppercase tracking-widest mb-1">
+                Pick: {pick ? pick.toUpperCase() : "—"}
+                {finished && pick && (
+                  <span className={`ml-2 ${pick === actual ? "text-[--gold]" : "text-destructive"}`}>
+                    {pick === actual ? "✓" : "✗"}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground italic">
+                {reasoning ?? (openPr.id === "juhani" ? "Your pick." : "No reasoning recorded.")}
+              </div>
             </div>
           );
-        })}
+        })()}
       </div>
     </div>
   );
