@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VisualizationRouteImport } from './routes/visualization'
 import { Route as RoomRouteImport } from './routes/room'
 import { Route as ResultsRouteImport } from './routes/results'
 import { Route as PersonasRouteImport } from './routes/personas'
@@ -18,6 +19,11 @@ import { Route as ApiPublicQuantResultsRouteImport } from './routes/api/public/q
 import { Route as ApiPublicQuantPredictionsRouteImport } from './routes/api/public/quant-predictions'
 import { Route as ApiPublicQuantFixturesRouteImport } from './routes/api/public/quant-fixtures'
 
+const VisualizationRoute = VisualizationRouteImport.update({
+  id: '/visualization',
+  path: '/visualization',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RoomRoute = RoomRouteImport.update({
   id: '/room',
   path: '/room',
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/personas': typeof PersonasRoute
   '/results': typeof ResultsRoute
   '/room': typeof RoomRoute
+  '/visualization': typeof VisualizationRoute
   '/api/public/quant-fixtures': typeof ApiPublicQuantFixturesRoute
   '/api/public/quant-predictions': typeof ApiPublicQuantPredictionsRoute
   '/api/public/quant-results': typeof ApiPublicQuantResultsRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/personas': typeof PersonasRoute
   '/results': typeof ResultsRoute
   '/room': typeof RoomRoute
+  '/visualization': typeof VisualizationRoute
   '/api/public/quant-fixtures': typeof ApiPublicQuantFixturesRoute
   '/api/public/quant-predictions': typeof ApiPublicQuantPredictionsRoute
   '/api/public/quant-results': typeof ApiPublicQuantResultsRoute
@@ -86,6 +94,7 @@ export interface FileRoutesById {
   '/personas': typeof PersonasRoute
   '/results': typeof ResultsRoute
   '/room': typeof RoomRoute
+  '/visualization': typeof VisualizationRoute
   '/api/public/quant-fixtures': typeof ApiPublicQuantFixturesRoute
   '/api/public/quant-predictions': typeof ApiPublicQuantPredictionsRoute
   '/api/public/quant-results': typeof ApiPublicQuantResultsRoute
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | '/personas'
     | '/results'
     | '/room'
+    | '/visualization'
     | '/api/public/quant-fixtures'
     | '/api/public/quant-predictions'
     | '/api/public/quant-results'
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/personas'
     | '/results'
     | '/room'
+    | '/visualization'
     | '/api/public/quant-fixtures'
     | '/api/public/quant-predictions'
     | '/api/public/quant-results'
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/personas'
     | '/results'
     | '/room'
+    | '/visualization'
     | '/api/public/quant-fixtures'
     | '/api/public/quant-predictions'
     | '/api/public/quant-results'
@@ -129,6 +141,7 @@ export interface RootRouteChildren {
   PersonasRoute: typeof PersonasRoute
   ResultsRoute: typeof ResultsRoute
   RoomRoute: typeof RoomRoute
+  VisualizationRoute: typeof VisualizationRoute
   ApiPublicQuantFixturesRoute: typeof ApiPublicQuantFixturesRoute
   ApiPublicQuantPredictionsRoute: typeof ApiPublicQuantPredictionsRoute
   ApiPublicQuantResultsRoute: typeof ApiPublicQuantResultsRoute
@@ -137,6 +150,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/visualization': {
+      id: '/visualization'
+      path: '/visualization'
+      fullPath: '/visualization'
+      preLoaderRoute: typeof VisualizationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/room': {
       id: '/room'
       path: '/room'
@@ -201,6 +221,7 @@ const rootRouteChildren: RootRouteChildren = {
   PersonasRoute: PersonasRoute,
   ResultsRoute: ResultsRoute,
   RoomRoute: RoomRoute,
+  VisualizationRoute: VisualizationRoute,
   ApiPublicQuantFixturesRoute: ApiPublicQuantFixturesRoute,
   ApiPublicQuantPredictionsRoute: ApiPublicQuantPredictionsRoute,
   ApiPublicQuantResultsRoute: ApiPublicQuantResultsRoute,
