@@ -105,6 +105,7 @@ const NAV_LINKS: Array<{ to: string; label: string; exact?: boolean }> = [
   { to: "/", label: "Guess", exact: true },
   { to: "/room", label: "Room" },
   { to: "/results", label: "Results" },
+  { to: "/groups", label: "Groups" },
   { to: "/visualization", label: "Chart" },
   { to: "/personas", label: "Personas" },
 ];

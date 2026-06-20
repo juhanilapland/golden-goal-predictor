@@ -13,6 +13,7 @@ import { Route as VisualizationRouteImport } from './routes/visualization'
 import { Route as RoomRouteImport } from './routes/room'
 import { Route as ResultsRouteImport } from './routes/results'
 import { Route as PersonasRouteImport } from './routes/personas'
+import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicSyncFixturesRouteImport } from './routes/api/public/sync-fixtures'
 import { Route as ApiPublicQuantResultsRouteImport } from './routes/api/public/quant-results'
@@ -37,6 +38,11 @@ const ResultsRoute = ResultsRouteImport.update({
 const PersonasRoute = PersonasRouteImport.update({
   id: '/personas',
   path: '/personas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GroupsRoute = GroupsRouteImport.update({
+  id: '/groups',
+  path: '/groups',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -68,6 +74,7 @@ const ApiPublicQuantFixturesRoute = ApiPublicQuantFixturesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/groups': typeof GroupsRoute
   '/personas': typeof PersonasRoute
   '/results': typeof ResultsRoute
   '/room': typeof RoomRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/groups': typeof GroupsRoute
   '/personas': typeof PersonasRoute
   '/results': typeof ResultsRoute
   '/room': typeof RoomRoute
@@ -91,6 +99,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/groups': typeof GroupsRoute
   '/personas': typeof PersonasRoute
   '/results': typeof ResultsRoute
   '/room': typeof RoomRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/groups'
     | '/personas'
     | '/results'
     | '/room'
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/groups'
     | '/personas'
     | '/results'
     | '/room'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/groups'
     | '/personas'
     | '/results'
     | '/room'
@@ -138,6 +150,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  GroupsRoute: typeof GroupsRoute
   PersonasRoute: typeof PersonasRoute
   ResultsRoute: typeof ResultsRoute
   RoomRoute: typeof RoomRoute
@@ -176,6 +189,13 @@ declare module '@tanstack/react-router' {
       path: '/personas'
       fullPath: '/personas'
       preLoaderRoute: typeof PersonasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/groups': {
+      id: '/groups'
+      path: '/groups'
+      fullPath: '/groups'
+      preLoaderRoute: typeof GroupsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -218,6 +238,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  GroupsRoute: GroupsRoute,
   PersonasRoute: PersonasRoute,
   ResultsRoute: ResultsRoute,
   RoomRoute: RoomRoute,
@@ -230,13 +251,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
