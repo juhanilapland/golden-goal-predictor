@@ -101,44 +101,75 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+const NAV_LINKS = [
+  { to: "/", label: "Guess", exact: true },
+  { to: "/room", label: "Room" },
+  { to: "/results", label: "Results" },
+  { to: "/visualization", label: "Chart" },
+  { to: "/personas", label: "Personas" },
+] as const;
+
 function NavBar() {
+  const [open, setOpen] = useState(false);
+  const baseLink =
+    "px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-muted-foreground hover:text-[--gold]";
+  const activeLink =
+    "px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-[--gold]";
+
   return (
     <nav className="border-b border-[--gold-deep]/40 bg-background/60 backdrop-blur sticky top-0 z-10">
-      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link to="/" className="font-display text-lg gold-text">
+      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+        <Link to="/" className="font-display text-lg gold-text shrink-0">
           WC&nbsp;26
         </Link>
-        <div className="flex gap-1">
-          <Link
-            to="/"
-            activeOptions={{ exact: true }}
-            className="px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-muted-foreground hover:text-[--gold]"
-            activeProps={{ className: "px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-[--gold]" }}
-          >
-            Guess
-          </Link>
-          <Link
-            to="/room"
-            className="px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-muted-foreground hover:text-[--gold]"
-            activeProps={{ className: "px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-[--gold]" }}
-          >
-            Room
-          </Link>
-          <Link
-            to="/results"
-            className="px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-muted-foreground hover:text-[--gold]"
-            activeProps={{ className: "px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-[--gold]" }}
-          >
-            Results
-          </Link>
-          <Link
-            to="/personas"
-            className="px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-muted-foreground hover:text-[--gold]"
-            activeProps={{ className: "px-3 py-1.5 rounded text-xs font-display uppercase tracking-widest text-[--gold]" }}
-          >
-            Personas
-          </Link>
+
+        {/* Desktop links */}
+        <div className="hidden sm:flex gap-1">
+          {NAV_LINKS.map((l) => (
+            <Link
+              key={l.to}
+              to={l.to}
+              activeOptions={l.exact ? { exact: true } : undefined}
+              className={baseLink}
+              activeProps={{ className: activeLink }}
+            >
+              {l.label}
+            </Link>
+          ))}
         </div>
+
+        {/* Mobile hamburger */}
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger
+            className="sm:hidden inline-flex items-center justify-center h-10 w-10 rounded border border-[--gold-deep]/40 text-[--gold]"
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </SheetTrigger>
+          <SheetContent
+            side="right"
+            className="w-72 border-l border-[--gold-deep]/40 bg-background"
+          >
+            <div className="mt-8 flex flex-col gap-1">
+              <div className="font-display text-lg gold-text mb-4">WC 26</div>
+              {NAV_LINKS.map((l) => (
+                <Link
+                  key={l.to}
+                  to={l.to}
+                  activeOptions={l.exact ? { exact: true } : undefined}
+                  onClick={() => setOpen(false)}
+                  className="px-4 py-3 rounded text-base font-display uppercase tracking-widest text-muted-foreground hover:text-[--gold] hover:bg-[--gold-deep]/10"
+                  activeProps={{
+                    className:
+                      "px-4 py-3 rounded text-base font-display uppercase tracking-widest text-[--gold] bg-[--gold-deep]/15",
+                  }}
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </nav>
   );
