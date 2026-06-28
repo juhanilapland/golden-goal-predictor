@@ -8,6 +8,7 @@ import {
   stageLabel,
   stageWeight,
   outcomeFromScore,
+  defaultActiveStage,
   type Pick,
 } from "@/lib/wc-config";
 import { toast } from "sonner";
