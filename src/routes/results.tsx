@@ -8,6 +8,7 @@ import {
   stageLabel,
   stageWeight,
   outcomeFromScore,
+  defaultActiveStage,
   type Pick,
 } from "@/lib/wc-config";
 import { toast } from "sonner";
@@ -68,7 +69,7 @@ function ResultsPage() {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [predictors, setPredictors] = useState<Predictor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stageFilter, setStageFilter] = useState<string>("ALL");
+  const [stageFilter, setStageFilter] = useState<string | null>(null);
   const [openCell, setOpenCell] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
 
@@ -131,8 +132,10 @@ function ResultsPage() {
       .sort((a, b) => b.points - a.points || b.correct - a.correct);
   }, [predictors, matchRows, guesses, predIndex]);
 
+  const activeDefault = useMemo(() => defaultActiveStage(matches), [matches]);
+  const effectiveStage = stageFilter ?? activeDefault;
   const visibleRows =
-    stageFilter === "ALL" ? matchRows : matchRows.filter((r) => r.m.stage === stageFilter);
+    effectiveStage === "ALL" ? matchRows : matchRows.filter((r) => r.m.stage === effectiveStage);
 
   const availableStages = STAGE_ORDER.filter((s) => matches.some((m) => m.stage === s));
 
@@ -184,13 +187,13 @@ function ResultsPage() {
 
           {/* Stage filter */}
           <div className="flex gap-2 flex-wrap mb-4 mt-10">
-            <FilterPill active={stageFilter === "ALL"} onClick={() => setStageFilter("ALL")}>
+            <FilterPill active={effectiveStage === "ALL"} onClick={() => setStageFilter("ALL")}>
               All
             </FilterPill>
             {availableStages.map((s) => (
               <FilterPill
                 key={s}
-                active={stageFilter === s}
+                active={effectiveStage === s}
                 onClick={() => setStageFilter(s)}
               >
                 {stageLabel(s)}

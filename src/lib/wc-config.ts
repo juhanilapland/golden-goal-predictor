@@ -57,3 +57,27 @@ export function outcomeFromScore(home: number | null, away: number | null): Pick
   if (home < away) return "away";
   return "draw";
 }
+
+/**
+ * Default stage to surface in the UI. We intentionally hide the group stage
+ * by default and show the earliest knockout stage that still has unfinished
+ * matches. Once every match in that stage is FINISHED, the next stage takes
+ * over automatically.
+ */
+export function defaultActiveStage(
+  matches: { stage: string; status: string }[],
+): string {
+  const knockout = STAGE_ORDER.filter((s) => s !== "GROUP_STAGE");
+  for (const s of knockout) {
+    const inStage = matches.filter((m) => m.stage === s);
+    if (inStage.length === 0) continue;
+    const allFinished = inStage.every((m) => m.status === "FINISHED");
+    if (!allFinished) return s;
+  }
+  // Everything knockout-wise is done (or not loaded yet) → pick the latest
+  // knockout stage that exists, falling back to LAST_32.
+  const latestWithMatches = [...knockout]
+    .reverse()
+    .find((s) => matches.some((m) => m.stage === s));
+  return latestWithMatches ?? "LAST_32";
+}

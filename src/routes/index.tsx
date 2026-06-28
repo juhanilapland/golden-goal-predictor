@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +7,7 @@ import {
   STAGE_ORDER,
   isKnockout,
   stageLabel,
+  defaultActiveStage,
   type Pick,
 } from "@/lib/wc-config";
 import { toast } from "sonner";
@@ -205,6 +206,7 @@ function GuessPage() {
   const [syncing, setSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [stageFilter, setStageFilter] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -301,16 +303,25 @@ function GuessPage() {
     return () => clearInterval(interval);
   }, [handleSync]);
 
+  const activeDefault = useMemo(() => defaultActiveStage(matches), [matches]);
+  const effectiveStage = stageFilter ?? activeDefault;
+
+  const availableStages = useMemo(
+    () => STAGE_ORDER.filter((s) => matches.some((m) => m.stage === s)),
+    [matches],
+  );
+
   const grouped = useMemo(() => {
     const byStage: Record<string, Match[]> = {};
     for (const m of matches) {
+      if (effectiveStage !== "ALL" && m.stage !== effectiveStage) continue;
       (byStage[m.stage] ??= []).push(m);
     }
     return STAGE_ORDER.filter((s) => byStage[s]?.length).map((s) => ({
       stage: s,
       matches: byStage[s],
     }));
-  }, [matches]);
+  }, [matches, effectiveStage]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
@@ -343,25 +354,72 @@ function GuessPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-10">
-          {grouped.map(({ stage, matches: ms }) => (
-            <section key={stage}>
-              <h2 className="text-2xl gold-text mb-4">{stageLabel(stage)}</h2>
-              <div className="space-y-3">
-                {ms.map((m) => (
-                  <MatchRow
-                    key={m.id}
-                    match={m}
-                    pick={guesses[m.id]}
-                    rivalCount={rivalCounts[m.id] ?? 0}
-                    onPick={(p) => handlePick(m.id, p)}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
+        <>
+          <div className="flex gap-2 flex-wrap mb-6">
+            <StagePill active={effectiveStage === "ALL"} onClick={() => setStageFilter("ALL")}>
+              All
+            </StagePill>
+            {availableStages.map((s) => (
+              <StagePill
+                key={s}
+                active={effectiveStage === s}
+                onClick={() => setStageFilter(s)}
+              >
+                {stageLabel(s)}
+              </StagePill>
+            ))}
+          </div>
+
+          {grouped.length === 0 ? (
+            <div className="gold-border bg-card rounded-lg p-10 text-center text-muted-foreground">
+              No matches in this stage yet.
+            </div>
+          ) : (
+            <div className="space-y-10">
+              {grouped.map(({ stage, matches: ms }) => (
+                <section key={stage}>
+                  <h2 className="text-2xl gold-text mb-4">{stageLabel(stage)}</h2>
+                  <div className="space-y-3">
+                    {ms.map((m) => (
+                      <MatchRow
+                        key={m.id}
+                        match={m}
+                        pick={guesses[m.id]}
+                        rivalCount={rivalCounts[m.id] ?? 0}
+                        onPick={(p) => handlePick(m.id, p)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
+  );
+}
+
+function StagePill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={[
+        "font-display text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-md border transition",
+        active
+          ? "bg-[--gold] text-[--bg] border-[--gold]"
+          : "text-[--gold-dim] border-[--gold-deep]/40 hover:text-[--gold] hover:border-[--gold-deep]",
+      ].join(" ")}
+    >
+      {children}
+    </button>
   );
 }
