@@ -132,8 +132,10 @@ function ResultsPage() {
       .sort((a, b) => b.points - a.points || b.correct - a.correct);
   }, [predictors, matchRows, guesses, predIndex]);
 
+  const activeDefault = useMemo(() => defaultActiveStage(matches), [matches]);
+  const effectiveStage = stageFilter ?? activeDefault;
   const visibleRows =
-    stageFilter === "ALL" ? matchRows : matchRows.filter((r) => r.m.stage === stageFilter);
+    effectiveStage === "ALL" ? matchRows : matchRows.filter((r) => r.m.stage === effectiveStage);
 
   const availableStages = STAGE_ORDER.filter((s) => matches.some((m) => m.stage === s));
 
