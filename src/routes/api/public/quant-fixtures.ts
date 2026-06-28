@@ -30,7 +30,6 @@ export const Route = createFileRoute("/api/public/quant-fixtures")({
           supabaseAdmin
             .from("matches")
             .select("id, kickoff, stage, group_name, home_team, away_team, home_code, away_code, status")
-            .eq("stage", "GROUP_STAGE")
             .neq("status", "FINISHED")
             .order("kickoff", { ascending: true }),
           supabaseAdmin.from("guesses").select("match_id"),
