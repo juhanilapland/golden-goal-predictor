@@ -187,13 +187,13 @@ function ResultsPage() {
 
           {/* Stage filter */}
           <div className="flex gap-2 flex-wrap mb-4 mt-10">
-            <FilterPill active={stageFilter === "ALL"} onClick={() => setStageFilter("ALL")}>
+            <FilterPill active={effectiveStage === "ALL"} onClick={() => setStageFilter("ALL")}>
               All
             </FilterPill>
             {availableStages.map((s) => (
               <FilterPill
                 key={s}
-                active={stageFilter === s}
+                active={effectiveStage === s}
                 onClick={() => setStageFilter(s)}
               >
                 {stageLabel(s)}
