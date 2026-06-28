@@ -206,6 +206,7 @@ function GuessPage() {
   const [syncing, setSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [stageFilter, setStageFilter] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
