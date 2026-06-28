@@ -182,8 +182,7 @@ function ResultsPage() {
         <div className="text-center text-muted-foreground py-20">Loading…</div>
       ) : (
         <>
-          <Podium leaderboard={leaderboard} hasData={finishedCount > 0} />
-          <RestOfTable leaderboard={leaderboard} leaderPoints={leader?.points ?? 0} />
+          <LeaderboardList leaderboard={leaderboard} leaderPoints={leader?.points ?? 0} />
 
           {/* Stage filter */}
           <div className="flex gap-2 flex-wrap mb-4 mt-10">
