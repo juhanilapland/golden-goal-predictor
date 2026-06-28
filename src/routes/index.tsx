@@ -7,6 +7,7 @@ import {
   STAGE_ORDER,
   isKnockout,
   stageLabel,
+  defaultActiveStage,
   type Pick,
 } from "@/lib/wc-config";
 import { toast } from "sonner";
