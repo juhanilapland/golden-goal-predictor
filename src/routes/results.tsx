@@ -371,20 +371,27 @@ function PodiumTile({
 
 
 
-function RestOfTable({
+function LeaderboardList({
   leaderboard,
   leaderPoints,
 }: {
   leaderboard: LeaderRow[];
   leaderPoints: number;
 }) {
-  const rest = leaderboard.slice(3);
-  if (rest.length === 0) return null;
+  if (leaderboard.length === 0) return null;
   return (
     <div className="gold-border bg-card rounded-lg overflow-hidden mt-3">
-      {rest.map((p, i) => {
-        const rank = i + 4;
+      {leaderboard.map((p, i) => {
+        const rank = i + 1;
         const acc = p.finished > 0 ? Math.round((p.correct / p.finished) * 100) : 0;
+        const rankColor =
+          rank === 1
+            ? "text-[--gold]"
+            : rank === 2
+              ? "text-[--gold-dim]"
+              : rank === 3
+                ? "text-[--gold-dim]/70"
+                : "text-[--gold-dim]/50";
         return (
           <div
             key={p.id}
@@ -392,7 +399,7 @@ function RestOfTable({
               p.id === "juhani" ? "bg-[--gold]/5" : ""
             }`}
           >
-            <div className="w-6 font-display text-[--gold-dim] text-sm text-center shrink-0">
+            <div className={`w-6 font-display text-sm text-center shrink-0 ${rankColor}`}>
               {rank}
             </div>
             <img
@@ -422,6 +429,7 @@ function RestOfTable({
     </div>
   );
 }
+
 
 function MatchCard({
   m,
