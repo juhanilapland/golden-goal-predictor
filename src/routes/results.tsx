@@ -69,7 +69,7 @@ function ResultsPage() {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [predictors, setPredictors] = useState<Predictor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stageFilter, setStageFilter] = useState<string>("ALL");
+  const [stageFilter, setStageFilter] = useState<string | null>(null);
   const [openCell, setOpenCell] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
 
