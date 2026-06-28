@@ -303,16 +303,25 @@ function GuessPage() {
     return () => clearInterval(interval);
   }, [handleSync]);
 
+  const activeDefault = useMemo(() => defaultActiveStage(matches), [matches]);
+  const effectiveStage = stageFilter ?? activeDefault;
+
+  const availableStages = useMemo(
+    () => STAGE_ORDER.filter((s) => matches.some((m) => m.stage === s)),
+    [matches],
+  );
+
   const grouped = useMemo(() => {
     const byStage: Record<string, Match[]> = {};
     for (const m of matches) {
+      if (effectiveStage !== "ALL" && m.stage !== effectiveStage) continue;
       (byStage[m.stage] ??= []).push(m);
     }
     return STAGE_ORDER.filter((s) => byStage[s]?.length).map((s) => ({
       stage: s,
       matches: byStage[s],
     }));
-  }, [matches]);
+  }, [matches, effectiveStage]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
