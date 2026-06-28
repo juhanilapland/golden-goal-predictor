@@ -354,25 +354,72 @@ function GuessPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-10">
-          {grouped.map(({ stage, matches: ms }) => (
-            <section key={stage}>
-              <h2 className="text-2xl gold-text mb-4">{stageLabel(stage)}</h2>
-              <div className="space-y-3">
-                {ms.map((m) => (
-                  <MatchRow
-                    key={m.id}
-                    match={m}
-                    pick={guesses[m.id]}
-                    rivalCount={rivalCounts[m.id] ?? 0}
-                    onPick={(p) => handlePick(m.id, p)}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
+        <>
+          <div className="flex gap-2 flex-wrap mb-6">
+            <StagePill active={effectiveStage === "ALL"} onClick={() => setStageFilter("ALL")}>
+              All
+            </StagePill>
+            {availableStages.map((s) => (
+              <StagePill
+                key={s}
+                active={effectiveStage === s}
+                onClick={() => setStageFilter(s)}
+              >
+                {stageLabel(s)}
+              </StagePill>
+            ))}
+          </div>
+
+          {grouped.length === 0 ? (
+            <div className="gold-border bg-card rounded-lg p-10 text-center text-muted-foreground">
+              No matches in this stage yet.
+            </div>
+          ) : (
+            <div className="space-y-10">
+              {grouped.map(({ stage, matches: ms }) => (
+                <section key={stage}>
+                  <h2 className="text-2xl gold-text mb-4">{stageLabel(stage)}</h2>
+                  <div className="space-y-3">
+                    {ms.map((m) => (
+                      <MatchRow
+                        key={m.id}
+                        match={m}
+                        pick={guesses[m.id]}
+                        rivalCount={rivalCounts[m.id] ?? 0}
+                        onPick={(p) => handlePick(m.id, p)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
+  );
+}
+
+function StagePill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={[
+        "font-display text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-md border transition",
+        active
+          ? "bg-[--gold] text-[--bg] border-[--gold]"
+          : "text-[--gold-dim] border-[--gold-deep]/40 hover:text-[--gold] hover:border-[--gold-deep]",
+      ].join(" ")}
+    >
+      {children}
+    </button>
   );
 }
