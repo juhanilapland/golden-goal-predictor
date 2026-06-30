@@ -208,7 +208,7 @@ function buildPrompt(
 ): string {
   const myPicks = rivalMatches.map((m) => {
     const mine = m.predictions.find((p) => p.predictor === rivalId);
-    const actual = m.outcome ?? outcomeFromScore(m.home_score, m.away_score);
+    const actual = m.outcome ?? outcomeFromScore(m.home_score, m.away_score, m.stage);
     const correct = mine && actual && mine.pick === actual;
     const pts = correct ? stageWeight(m.stage) : 0;
     return `- ${m.home_team} ${m.home_score ?? "?"}-${m.away_score ?? "?"} ${m.away_team} | my pick: ${mine?.pick ?? "—"}${mine?.reasoning ? ` ("${mine.reasoning}")` : ""} | actual: ${actual ?? "?"} | ${correct ? `+${pts} pts ✓` : "0 pts ✗"}`;
