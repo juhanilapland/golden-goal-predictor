@@ -1,37 +1,33 @@
-## /groups page
+## Problem
 
-A new route showing all 12 group standings plus the scheduled knockout rounds (R32, R16, QF, SF, 3rd-place, Final) as they currently exist in the `matches` table.
+Knockout matches can't end in a draw — penalties decide a winner — but our `matches.outcome` column is set from full-time score only. Netherlands 4–4 Morocco (LAST_32) is stored as `outcome = "draw"`, so every guesser is marked wrong, including Quincy who picked Morocco (the actual penalty winner).
 
-### Group standings (per group A–L)
+## Fix
 
-For each `GROUP_<X>` collect its 6 matches and compute, per team:
-- **P** played (status = `FINISHED`)
-- **W / D / L** from `outcome` vs `home_team`/`away_team`
-- **GF / GA / GD** from `home_score`/`away_score`
-- **Pts** = W*3 + D*1
+### 1. Capture the real winner from the upstream API
 
-Sort by **Pts → GD → GF** (descending). Highlight top 2 in gold (qualified slots) and 3rd row in muted gold (best-third candidate).
+`src/routes/api/public/sync-fixtures.ts` currently derives `outcome` from `score.fullTime`. Football-data v4 also returns `score.winner` ("HOME_TEAM" / "AWAY_TEAM" / "DRAW") which already accounts for extra time and penalties. Switch knockout matches to use `score.winner`:
 
-Layout: 12 group cards in a responsive grid (1 col mobile, 2 md, 3 lg). Each card uses shadcn `Card` + `Table` with columns: # · Team · P · W · D · L · GF · GA · GD · Pts. Compact on mobile (hide GF/GA, keep GD/Pts).
+- For `stage === "GROUP_STAGE"` → keep current behavior (draws are valid).
+- For knockouts → map `score.winner` to `home` / `away`. Never store `draw` for a FINISHED knockout match.
 
-### Knockout section
+### 2. Scoring helper guard
 
-Below the groups, four collapsible sections (one per stage) listing every match in the DB at that stage in kickoff order:
-- Round of 32 (16 matches)
-- Round of 16 (8)
-- Quarter-finals (4)
-- Semi-finals + Third Place + Final
+In `src/lib/wc-config.ts`, add a stage-aware helper (or update the call sites in `room.functions.ts`, `predictors.functions.ts`, `results.tsx`, `visualization.tsx`) so that when a match is knockout + FINISHED + scores equal and `outcome` is missing, we don't fall back to `outcomeFromScore` (which would return "draw"). Prefer the stored `outcome` and treat missing knockout outcome as "unknown" rather than draw.
 
-Each row: kickoff date · home_team vs away_team · score if `FINISHED`, else "TBD" / kickoff time. Teams shown as "TBD" when the slot has no team yet in DB (no projection logic).
+### 3. Backfill Netherlands vs Morocco
 
-### Navigation
+One-off DB update: set `matches.outcome = 'away'` for match id 537418 so the results page immediately recomputes points (Quincy gets credit, the other six lose their wrong "home" pick — which matches reality).
 
-Add "Groups" link to the existing `NAV_LINKS` array in `src/routes/__root.tsx` so it appears in both the desktop bar and the mobile sheet.
+### 4. Re-sync
 
-### Technical
+After the code change, hitting `/api/public/sync-fixtures` will overwrite outcomes from `score.winner` for any future knockout match automatically, so this won't recur for Round of 16 and beyond.
 
-- New file: `src/routes/groups.tsx` — public route, client-side fetch via existing `supabase` browser client (matches the `/visualization` pattern; `matches` already has public SELECT policy).
-- Pure-frontend computation in a `useMemo` keyed off the matches array; no new server fn, no DB changes.
-- Reuses shadcn `Card` and `Table` already in the project; gold accent via the existing `--gold` token.
-- `src/routes/__root.tsx` — append `{ to: "/groups", label: "Groups" }` to `NAV_LINKS`.
-- `src/routeTree.gen.ts` — auto-regenerated.
+## Out of scope
+
+- No schema change. We keep using the existing `outcome` column ("home" | "away" | "draw" | null); knockouts just never write "draw".
+- No UI change to show penalty score (e.g. "4–4 (5–3 pens)"). Happy to add as a follow-up if you want it visible.
+
+## Want me to also surface the penalty score in the UI?
+
+If yes, I'd add `penalty_home` / `penalty_away` columns and render "4–4 (pens X–Y)" on the match card. Otherwise we just fix the outcome and move on.
