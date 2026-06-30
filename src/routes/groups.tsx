@@ -94,8 +94,7 @@ function GroupsPage() {
       return s;
     };
     for (const m of matches) {
-      if (m.stage !== "GROUP_STAGE" || !m.group_name) continue;
-      const g = m.group_name.replace("GROUP_", "");
+      const g = (m.group_name ?? "").replace("GROUP_", "");
       ensure(m.home_team, g);
       ensure(m.away_team, g);
       if (m.status !== "FINISHED" || m.home_score == null || m.away_score == null) continue;
@@ -107,6 +106,15 @@ function GroupsPage() {
       h.ga += m.away_score;
       a.gf += m.away_score;
       a.ga += m.home_score;
+      // Knockouts: use stored outcome (penalty winner), not raw score.
+      if (m.stage !== "GROUP_STAGE") {
+        if (m.outcome === "home") {
+          h.w++; h.pts += 3; a.l++;
+        } else if (m.outcome === "away") {
+          a.w++; a.pts += 3; h.l++;
+        }
+        continue;
+      }
       if (m.home_score > m.away_score) {
         h.w++;
         h.pts += 3;
