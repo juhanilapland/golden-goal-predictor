@@ -11,8 +11,21 @@ type FDMatch = {
   score: {
     winner: "HOME_TEAM" | "AWAY_TEAM" | "DRAW" | null;
     fullTime: { home: number | null; away: number | null };
+    regularTime?: { home: number | null; away: number | null };
+    extraTime?: { home: number | null; away: number | null };
+    penalties?: { home: number | null; away: number | null };
   };
 };
+
+// For knockouts that go to ET/penalties, prefer regularTime so the displayed
+// scoreline reflects the 90' result (e.g. 1–1) rather than penalty totals.
+function displayScore(m: FDMatch): { home: number | null; away: number | null } {
+  if (m.stage !== "GROUP_STAGE" && m.score.regularTime) {
+    const rt = m.score.regularTime;
+    if (rt.home != null && rt.away != null) return rt;
+  }
+  return m.score.fullTime;
+}
 
 function outcomeOf(m: FDMatch): string | null {
   const { home, away } = m.score.fullTime;
