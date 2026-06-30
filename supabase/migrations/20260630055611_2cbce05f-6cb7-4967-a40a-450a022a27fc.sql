@@ -1,0 +1,1 @@
+UPDATE public.matches SET outcome = 'away' WHERE id = 537418;
