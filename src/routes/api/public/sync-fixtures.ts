@@ -73,10 +73,23 @@ async function handleSync() {
   }
 
   const data = (await res.json()) as { matches: FDMatch[] };
-  const rows = data.matches.map((m) => ({
-    id: m.id,
-    stage: m.stage,
-    group_name: m.group,
+  const rows = data.matches.map((m) => {
+    const disp = displayScore(m);
+    return {
+      id: m.id,
+      stage: m.stage,
+      group_name: m.group,
+      kickoff: m.utcDate,
+      home_team: m.homeTeam.name ?? m.homeTeam.shortName ?? "TBD",
+      away_team: m.awayTeam.name ?? m.awayTeam.shortName ?? "TBD",
+      home_code: m.homeTeam.crest,
+      away_code: m.awayTeam.crest,
+      status: m.status,
+      home_score: disp.home,
+      away_score: disp.away,
+      outcome: m.status === "FINISHED" ? outcomeOf(m) : null,
+    };
+  });
     kickoff: m.utcDate,
     home_team: m.homeTeam.name ?? m.homeTeam.shortName ?? "TBD",
     away_team: m.awayTeam.name ?? m.awayTeam.shortName ?? "TBD",
