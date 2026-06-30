@@ -8,11 +8,25 @@ type FDMatch = {
   group: string | null;
   homeTeam: { name: string | null; shortName: string | null; tla: string | null; crest: string | null };
   awayTeam: { name: string | null; shortName: string | null; tla: string | null; crest: string | null };
-  score: { fullTime: { home: number | null; away: number | null } };
+  score: {
+    winner: "HOME_TEAM" | "AWAY_TEAM" | "DRAW" | null;
+    fullTime: { home: number | null; away: number | null };
+  };
 };
 
-function outcomeOf(home: number | null, away: number | null): string | null {
+function outcomeOf(m: FDMatch): string | null {
+  const { home, away } = m.score.fullTime;
   if (home == null || away == null) return null;
+  // Knockout matches can't end in a draw — penalties/ET decide it.
+  // score.winner already accounts for ET + penalties.
+  if (m.stage !== "GROUP_STAGE") {
+    if (m.score.winner === "HOME_TEAM") return "home";
+    if (m.score.winner === "AWAY_TEAM") return "away";
+    // Fall through if winner missing — guess from score, but never "draw" for knockouts.
+    if (home > away) return "home";
+    if (away > home) return "away";
+    return null;
+  }
   if (home > away) return "home";
   if (home < away) return "away";
   return "draw";
