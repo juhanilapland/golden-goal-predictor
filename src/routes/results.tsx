@@ -106,7 +106,7 @@ function ResultsPage() {
     return matches.map((m) => {
       const actual =
         m.outcome ??
-        (m.status === "FINISHED" ? outcomeFromScore(m.home_score, m.away_score) : null);
+        (m.status === "FINISHED" ? outcomeFromScore(m.home_score, m.away_score, m.stage) : null);
       return { m, actual };
     });
   }, [matches]);
