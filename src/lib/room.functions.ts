@@ -208,7 +208,7 @@ function buildPrompt(
 ): string {
   const myPicks = rivalMatches.map((m) => {
     const mine = m.predictions.find((p) => p.predictor === rivalId);
-    const actual = m.outcome ?? outcomeFromScore(m.home_score, m.away_score);
+    const actual = m.outcome ?? outcomeFromScore(m.home_score, m.away_score, m.stage);
     const correct = mine && actual && mine.pick === actual;
     const pts = correct ? stageWeight(m.stage) : 0;
     return `- ${m.home_team} ${m.home_score ?? "?"}-${m.away_score ?? "?"} ${m.away_team} | my pick: ${mine?.pick ?? "—"}${mine?.reasoning ? ` ("${mine.reasoning}")` : ""} | actual: ${actual ?? "?"} | ${correct ? `+${pts} pts ✓` : "0 pts ✗"}`;
@@ -351,7 +351,7 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
   const acc: Record<string, { points: number; correct: number; total: number; history: string[] }> = {};
   for (const r of RIVAL_ORDER) acc[r] = { points: 0, correct: 0, total: 0, history: [] };
   for (const m of allFinished ?? []) {
-    const actual = m.outcome ?? outcomeFromScore(m.home_score, m.away_score);
+    const actual = m.outcome ?? outcomeFromScore(m.home_score, m.away_score, m.stage);
     if (!actual) continue;
     const rowPreds = predsByMatch.get(m.id) ?? [];
     for (const p of rowPreds) {

@@ -51,10 +51,17 @@ export function stageWeight(stage: string): number {
   return STAGE_WEIGHTS[stage] ?? 1;
 }
 
-export function outcomeFromScore(home: number | null, away: number | null): Pick | null {
+export function outcomeFromScore(
+  home: number | null,
+  away: number | null,
+  stage?: string,
+): Pick | null {
   if (home == null || away == null) return null;
   if (home > away) return "home";
   if (home < away) return "away";
+  // Knockouts can't draw — penalties decide it. Without stored outcome we
+  // can't infer the winner, so return null instead of "draw".
+  if (stage && stage !== "GROUP_STAGE") return null;
   return "draw";
 }
 
