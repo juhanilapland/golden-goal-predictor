@@ -94,6 +94,7 @@ function GroupsPage() {
       return s;
     };
     for (const m of matches) {
+      if (m.home_team === "TBD" || m.away_team === "TBD") continue;
       const g = (m.group_name ?? "").replace("GROUP_", "");
       ensure(m.home_team, g);
       ensure(m.away_team, g);
