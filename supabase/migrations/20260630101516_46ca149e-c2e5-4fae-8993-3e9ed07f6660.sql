@@ -1,0 +1,1 @@
+UPDATE matches SET home_score=1, away_score=1 WHERE id IN (537415, 537418);
