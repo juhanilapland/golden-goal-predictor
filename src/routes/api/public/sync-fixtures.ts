@@ -72,7 +72,7 @@ async function handleSync() {
     status: m.status,
     home_score: m.score.fullTime.home,
     away_score: m.score.fullTime.away,
-    outcome: m.status === "FINISHED" ? outcomeOf(m.score.fullTime.home, m.score.fullTime.away) : null,
+    outcome: m.status === "FINISHED" ? outcomeOf(m) : null,
   }));
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
