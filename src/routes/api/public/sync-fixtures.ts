@@ -90,16 +90,6 @@ async function handleSync() {
       outcome: m.status === "FINISHED" ? outcomeOf(m) : null,
     };
   });
-    kickoff: m.utcDate,
-    home_team: m.homeTeam.name ?? m.homeTeam.shortName ?? "TBD",
-    away_team: m.awayTeam.name ?? m.awayTeam.shortName ?? "TBD",
-    home_code: m.homeTeam.crest,
-    away_code: m.awayTeam.crest,
-    status: m.status,
-    home_score: m.score.fullTime.home,
-    away_score: m.score.fullTime.away,
-    outcome: m.status === "FINISHED" ? outcomeOf(m) : null,
-  }));
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { error } = await supabaseAdmin.from("matches").upsert(rows, { onConflict: "id" });
