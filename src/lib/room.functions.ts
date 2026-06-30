@@ -351,7 +351,7 @@ export const generateRoomReplies = createServerFn({ method: "POST" }).handler(as
   const acc: Record<string, { points: number; correct: number; total: number; history: string[] }> = {};
   for (const r of RIVAL_ORDER) acc[r] = { points: 0, correct: 0, total: 0, history: [] };
   for (const m of allFinished ?? []) {
-    const actual = m.outcome ?? outcomeFromScore(m.home_score, m.away_score);
+    const actual = m.outcome ?? outcomeFromScore(m.home_score, m.away_score, m.stage);
     if (!actual) continue;
     const rowPreds = predsByMatch.get(m.id) ?? [];
     for (const p of rowPreds) {
