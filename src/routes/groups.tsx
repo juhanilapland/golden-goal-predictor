@@ -67,25 +67,37 @@ const KNOCKOUT_STAGES: Array<{ id: string; label: string }> = [
 function GroupsPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
+  const loadMatches = useCallback(async () => {
+    const { data } = await supabase
+      .from("matches")
+      .select(
+        "id,kickoff,stage,group_name,home_team,away_team,home_code,away_code,home_score,away_score,status,outcome",
+      )
+      .order("kickoff", { ascending: true });
+    setMatches((data ?? []) as Match[]);
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from("matches")
-        .select(
-          "id,kickoff,stage,group_name,home_team,away_team,home_score,away_score,status,outcome",
-        )
-        .order("kickoff", { ascending: true });
-      if (!cancelled) {
-        setMatches((data ?? []) as Match[]);
-        setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    loadMatches();
+  }, [loadMatches]);
+
+  const refresh = useCallback(async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/public/sync-fixtures", { method: "POST" });
+      if (!res.ok) throw new Error(await res.text());
+      const j = await res.json();
+      toast.success(`Synced ${j.synced ?? 0} fixtures`);
+      await loadMatches();
+    } catch (e) {
+      toast.error(`Sync failed: ${(e as Error).message}`);
+    } finally {
+      setSyncing(false);
+    }
+  }, [loadMatches]);
 
   const leaderboard = useMemo<Standing[]>(() => {
     const tbl = new Map<string, Standing>();
