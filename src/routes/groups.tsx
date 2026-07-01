@@ -308,11 +308,13 @@ function BracketMatch({ m }: { m: Match }) {
   const date = new Date(m.kickoff);
   const TeamRow = ({
     team,
+    crest,
     score,
     isWinner,
     isLoser,
   }: {
     team: string;
+    crest: string | null;
     score: number | null;
     isWinner: boolean;
     isLoser: boolean;
@@ -324,8 +326,21 @@ function BracketMatch({ m }: { m: Match }) {
         isLoser && "text-muted-foreground",
       )}
     >
-      <span className={cn("truncate", team === "TBD" && "italic text-muted-foreground")}>
-        {team || "TBD"}
+      <span className="flex items-center gap-2 min-w-0">
+        {crest ? (
+          <img
+            src={crest}
+            alt=""
+            aria-hidden
+            className={cn("w-4 h-4 shrink-0 object-contain", isLoser && "opacity-50")}
+            loading="lazy"
+          />
+        ) : (
+          <span className="w-4 h-4 shrink-0" />
+        )}
+        <span className={cn("truncate", team === "TBD" && "italic text-muted-foreground")}>
+          {team || "TBD"}
+        </span>
       </span>
       <span className="tabular-nums shrink-0">{score ?? "–"}</span>
     </div>
@@ -334,6 +349,7 @@ function BracketMatch({ m }: { m: Match }) {
     <div className="rounded-md border border-[--gold-deep]/40 bg-background/60 overflow-hidden">
       <TeamRow
         team={m.home_team}
+        crest={m.home_code}
         score={m.home_score}
         isWinner={winner === "home"}
         isLoser={winner === "away"}
@@ -341,10 +357,12 @@ function BracketMatch({ m }: { m: Match }) {
       <div className="h-px bg-[--gold-deep]/20" />
       <TeamRow
         team={m.away_team}
+        crest={m.away_code}
         score={m.away_score}
         isWinner={winner === "away"}
         isLoser={winner === "home"}
       />
+
       <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground border-t border-[--gold-deep]/20 flex justify-between">
         <span>
           {date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
