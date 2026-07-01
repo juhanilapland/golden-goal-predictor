@@ -168,12 +168,23 @@ function GroupsPage() {
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-6">
-      <header className="mb-6">
-        <h1 className="font-display text-3xl gold-text">Standings & Bracket</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Overall team leaderboard (Pts · GD · GF) and knockout bracket.
-        </p>
+      <header className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl gold-text">Standings & Bracket</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Overall team leaderboard (Pts · GD · GF) and knockout bracket.
+          </p>
+        </div>
+        <Button
+          onClick={refresh}
+          disabled={syncing}
+          variant="outline"
+          className="border-[--gold-deep]/40"
+        >
+          {syncing ? "Syncing…" : "Refresh fixtures"}
+        </Button>
       </header>
+
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
