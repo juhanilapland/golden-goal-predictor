@@ -21,6 +21,8 @@ type Match = {
   group_name: string | null;
   home_team: string;
   away_team: string;
+  home_code: string | null;
+  away_code: string | null;
   home_score: number | null;
   away_score: number | null;
   status: string;
