@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -10,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 type Match = {
@@ -19,6 +21,8 @@ type Match = {
   group_name: string | null;
   home_team: string;
   away_team: string;
+  home_code: string | null;
+  away_code: string | null;
   home_score: number | null;
   away_score: number | null;
   status: string;
@@ -63,25 +67,37 @@ const KNOCKOUT_STAGES: Array<{ id: string; label: string }> = [
 function GroupsPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
+  const loadMatches = useCallback(async () => {
+    const { data } = await supabase
+      .from("matches")
+      .select(
+        "id,kickoff,stage,group_name,home_team,away_team,home_code,away_code,home_score,away_score,status,outcome",
+      )
+      .order("kickoff", { ascending: true });
+    setMatches((data ?? []) as Match[]);
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from("matches")
-        .select(
-          "id,kickoff,stage,group_name,home_team,away_team,home_score,away_score,status,outcome",
-        )
-        .order("kickoff", { ascending: true });
-      if (!cancelled) {
-        setMatches((data ?? []) as Match[]);
-        setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    loadMatches();
+  }, [loadMatches]);
+
+  const refresh = useCallback(async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/public/sync-fixtures", { method: "POST" });
+      if (!res.ok) throw new Error(await res.text());
+      const j = await res.json();
+      toast.success(`Synced ${j.synced ?? 0} fixtures`);
+      await loadMatches();
+    } catch (e) {
+      toast.error(`Sync failed: ${(e as Error).message}`);
+    } finally {
+      setSyncing(false);
+    }
+  }, [loadMatches]);
 
   const leaderboard = useMemo<Standing[]>(() => {
     const tbl = new Map<string, Standing>();
@@ -152,12 +168,23 @@ function GroupsPage() {
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-6">
-      <header className="mb-6">
-        <h1 className="font-display text-3xl gold-text">Standings & Bracket</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Overall team leaderboard (Pts · GD · GF) and knockout bracket.
-        </p>
+      <header className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl gold-text">Standings & Bracket</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Overall team leaderboard (Pts · GD · GF) and knockout bracket.
+          </p>
+        </div>
+        <Button
+          onClick={refresh}
+          disabled={syncing}
+          variant="outline"
+          className="border-[--gold-deep]/40"
+        >
+          {syncing ? "Syncing…" : "Refresh fixtures"}
+        </Button>
       </header>
+
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
@@ -281,11 +308,13 @@ function BracketMatch({ m }: { m: Match }) {
   const date = new Date(m.kickoff);
   const TeamRow = ({
     team,
+    crest,
     score,
     isWinner,
     isLoser,
   }: {
     team: string;
+    crest: string | null;
     score: number | null;
     isWinner: boolean;
     isLoser: boolean;
@@ -297,8 +326,21 @@ function BracketMatch({ m }: { m: Match }) {
         isLoser && "text-muted-foreground",
       )}
     >
-      <span className={cn("truncate", team === "TBD" && "italic text-muted-foreground")}>
-        {team || "TBD"}
+      <span className="flex items-center gap-2 min-w-0">
+        {crest ? (
+          <img
+            src={crest}
+            alt=""
+            aria-hidden
+            className={cn("w-4 h-4 shrink-0 object-contain", isLoser && "opacity-50")}
+            loading="lazy"
+          />
+        ) : (
+          <span className="w-4 h-4 shrink-0" />
+        )}
+        <span className={cn("truncate", team === "TBD" && "italic text-muted-foreground")}>
+          {team || "TBD"}
+        </span>
       </span>
       <span className="tabular-nums shrink-0">{score ?? "–"}</span>
     </div>
@@ -307,6 +349,7 @@ function BracketMatch({ m }: { m: Match }) {
     <div className="rounded-md border border-[--gold-deep]/40 bg-background/60 overflow-hidden">
       <TeamRow
         team={m.home_team}
+        crest={m.home_code}
         score={m.home_score}
         isWinner={winner === "home"}
         isLoser={winner === "away"}
@@ -314,10 +357,12 @@ function BracketMatch({ m }: { m: Match }) {
       <div className="h-px bg-[--gold-deep]/20" />
       <TeamRow
         team={m.away_team}
+        crest={m.away_code}
         score={m.away_score}
         isWinner={winner === "away"}
         isLoser={winner === "home"}
       />
+
       <div className="px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground border-t border-[--gold-deep]/20 flex justify-between">
         <span>
           {date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
