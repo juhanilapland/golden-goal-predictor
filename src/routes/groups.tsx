@@ -225,10 +225,19 @@ function GroupsPage() {
       ) : (
         <>
           <Card className="border-[--gold-deep]/40 bg-background/60">
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 flex-row items-center justify-between gap-3 space-y-0">
               <CardTitle className="font-display text-lg gold-text">
                 Team Leaderboard
               </CardTitle>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={onlyAlive}
+                  onChange={(e) => setOnlyAlive(e.target.checked)}
+                  className="accent-[--gold]"
+                />
+                Still in tournament
+              </label>
             </CardHeader>
             <CardContent className="pt-0">
               <Table>
