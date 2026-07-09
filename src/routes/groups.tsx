@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { defaultActiveStage } from "@/lib/wc-config";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,6 +69,9 @@ function GroupsPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [onlyAlive, setOnlyAlive] = useState(true);
+  const bracketScrollRef = useRef<HTMLDivElement>(null);
+  const activeStageRef = useRef<HTMLDivElement>(null);
 
   const loadMatches = useCallback(async () => {
     const { data } = await supabase
@@ -164,6 +168,36 @@ function GroupsPage() {
     return map;
   }, [matches]);
 
+  const eliminatedTeams = useMemo(() => {
+    const out = new Set<string>();
+    for (const m of matches) {
+      if (m.stage === "GROUP_STAGE") continue;
+      if (m.status !== "FINISHED") continue;
+      if (m.outcome === "home") out.add(m.away_team);
+      else if (m.outcome === "away") out.add(m.home_team);
+    }
+    out.delete("TBD");
+    return out;
+  }, [matches]);
+
+  const filteredLeaderboard = useMemo(
+    () => (onlyAlive ? leaderboard.filter((s) => !eliminatedTeams.has(s.team)) : leaderboard),
+    [leaderboard, onlyAlive, eliminatedTeams],
+  );
+
+  const activeStage = useMemo(() => defaultActiveStage(matches), [matches]);
+
+  useEffect(() => {
+    if (loading) return;
+    // Scroll the active stage column into view within the bracket container.
+    const container = bracketScrollRef.current;
+    const target = activeStageRef.current;
+    if (container && target) {
+      const left = target.offsetLeft - 8;
+      container.scrollTo({ left, behavior: "auto" });
+    }
+  }, [loading, activeStage]);
+
   const thirdPlace = knockouts.get("THIRD_PLACE") ?? [];
 
   return (
@@ -191,10 +225,19 @@ function GroupsPage() {
       ) : (
         <>
           <Card className="border-[--gold-deep]/40 bg-background/60">
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 flex-row items-center justify-between gap-3 space-y-0">
               <CardTitle className="font-display text-lg gold-text">
                 Team Leaderboard
               </CardTitle>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={onlyAlive}
+                  onChange={(e) => setOnlyAlive(e.target.checked)}
+                  className="accent-[--gold]"
+                />
+                Still in tournament
+              </label>
             </CardHeader>
             <CardContent className="pt-0">
               <Table>
@@ -214,7 +257,7 @@ function GroupsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {leaderboard.map((s, i) => {
+                  {filteredLeaderboard.map((s, i) => {
                     const rank = i + 1;
                     return (
                       <TableRow key={s.team} className="border-[--gold-deep]/15">
@@ -251,14 +294,16 @@ function GroupsPage() {
 
           <section className="mt-10">
             <h2 className="font-display text-2xl gold-text mb-3">Knockout Bracket</h2>
-            <div className="overflow-x-auto pb-4">
+            <div ref={bracketScrollRef} className="overflow-x-auto pb-4">
               <div className="flex gap-4 min-w-max">
                 {KNOCKOUT_STAGES.map((stage) => {
                   const ms = knockouts.get(stage.id) ?? [];
                   if (ms.length === 0) return null;
+                  const isActive = stage.id === activeStage;
                   return (
                     <div
                       key={stage.id}
+                      ref={isActive ? activeStageRef : undefined}
                       className="flex flex-col justify-around gap-3 min-w-[220px]"
                     >
                       <div className="text-xs uppercase tracking-widest text-muted-foreground text-center">
