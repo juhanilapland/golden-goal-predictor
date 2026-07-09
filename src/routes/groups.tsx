@@ -257,7 +257,7 @@ function GroupsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {leaderboard.map((s, i) => {
+                  {filteredLeaderboard.map((s, i) => {
                     const rank = i + 1;
                     return (
                       <TableRow key={s.team} className="border-[--gold-deep]/15">
