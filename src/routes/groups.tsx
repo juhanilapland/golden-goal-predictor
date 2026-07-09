@@ -185,7 +185,6 @@ function GroupsPage() {
     [leaderboard, onlyAlive, aliveTeams],
   );
 
-  const activeStage = useMemo(() => defaultActiveStage(matches), [matches]);
 
   useEffect(() => {
     if (loading) return;
