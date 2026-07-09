@@ -168,6 +168,36 @@ function GroupsPage() {
     return map;
   }, [matches]);
 
+  const eliminatedTeams = useMemo(() => {
+    const out = new Set<string>();
+    for (const m of matches) {
+      if (m.stage === "GROUP_STAGE") continue;
+      if (m.status !== "FINISHED") continue;
+      if (m.outcome === "home") out.add(m.away_team);
+      else if (m.outcome === "away") out.add(m.home_team);
+    }
+    out.delete("TBD");
+    return out;
+  }, [matches]);
+
+  const filteredLeaderboard = useMemo(
+    () => (onlyAlive ? leaderboard.filter((s) => !eliminatedTeams.has(s.team)) : leaderboard),
+    [leaderboard, onlyAlive, eliminatedTeams],
+  );
+
+  const activeStage = useMemo(() => defaultActiveStage(matches), [matches]);
+
+  useEffect(() => {
+    if (loading) return;
+    // Scroll the active stage column into view within the bracket container.
+    const container = bracketScrollRef.current;
+    const target = activeStageRef.current;
+    if (container && target) {
+      const left = target.offsetLeft - 8;
+      container.scrollTo({ left, behavior: "auto" });
+    }
+  }, [loading, activeStage]);
+
   const thirdPlace = knockouts.get("THIRD_PLACE") ?? [];
 
   return (
