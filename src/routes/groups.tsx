@@ -69,6 +69,9 @@ function GroupsPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [onlyAlive, setOnlyAlive] = useState(true);
+  const bracketScrollRef = useRef<HTMLDivElement>(null);
+  const activeStageRef = useRef<HTMLDivElement>(null);
 
   const loadMatches = useCallback(async () => {
     const { data } = await supabase
