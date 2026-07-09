@@ -168,21 +168,21 @@ function GroupsPage() {
     return map;
   }, [matches]);
 
-  const eliminatedTeams = useMemo(() => {
-    const out = new Set<string>();
+  const activeStage = useMemo(() => defaultActiveStage(matches), [matches]);
+
+  const aliveTeams = useMemo(() => {
+    const alive = new Set<string>();
     for (const m of matches) {
-      if (m.stage === "GROUP_STAGE") continue;
-      if (m.status !== "FINISHED") continue;
-      if (m.outcome === "home") out.add(m.away_team);
-      else if (m.outcome === "away") out.add(m.home_team);
+      if (m.stage !== activeStage) continue;
+      if (m.home_team && m.home_team !== "TBD") alive.add(m.home_team);
+      if (m.away_team && m.away_team !== "TBD") alive.add(m.away_team);
     }
-    out.delete("TBD");
-    return out;
-  }, [matches]);
+    return alive;
+  }, [matches, activeStage]);
 
   const filteredLeaderboard = useMemo(
-    () => (onlyAlive ? leaderboard.filter((s) => !eliminatedTeams.has(s.team)) : leaderboard),
-    [leaderboard, onlyAlive, eliminatedTeams],
+    () => (onlyAlive ? leaderboard.filter((s) => aliveTeams.has(s.team)) : leaderboard),
+    [leaderboard, onlyAlive, aliveTeams],
   );
 
   const activeStage = useMemo(() => defaultActiveStage(matches), [matches]);
