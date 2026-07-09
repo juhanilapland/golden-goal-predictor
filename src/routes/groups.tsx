@@ -294,14 +294,16 @@ function GroupsPage() {
 
           <section className="mt-10">
             <h2 className="font-display text-2xl gold-text mb-3">Knockout Bracket</h2>
-            <div className="overflow-x-auto pb-4">
+            <div ref={bracketScrollRef} className="overflow-x-auto pb-4">
               <div className="flex gap-4 min-w-max">
                 {KNOCKOUT_STAGES.map((stage) => {
                   const ms = knockouts.get(stage.id) ?? [];
                   if (ms.length === 0) return null;
+                  const isActive = stage.id === activeStage;
                   return (
                     <div
                       key={stage.id}
+                      ref={isActive ? activeStageRef : undefined}
                       className="flex flex-col justify-around gap-3 min-w-[220px]"
                     >
                       <div className="text-xs uppercase tracking-widest text-muted-foreground text-center">
